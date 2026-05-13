@@ -36,6 +36,7 @@ config:
       - "sub"
       - "sup"
   MD034: false
+  MD036: false
   MD040: false
   MD041: false
   MD046:
