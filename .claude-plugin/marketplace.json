@@ -1,16 +1,13 @@
 {
-  "name": "startups-migrate",
+  "name": "startups-for-aws",
   "owner": {
-    "name": "AWS Startups - Migrate"
+    "name": "AWS Startups"
   },
-  "description": "Migration tools and plugins for moving workloads to AWS",
-  "metadata": {
-    "pluginRoot": "./plugins"
-  },
+  "description": "AI agent plugins and tools for AWS Startups",
   "plugins": [
     {
       "name": "migration-to-aws",
-      "source": "./migration-to-aws",
+      "source": "./migrate/plugins/migration-to-aws",
       "version": "1.1.0",
       "description": "Migrate GCP/Azure infrastructure and AI workloads to AWS with resource discovery, architecture mapping, cost analysis, and execution planning"
     }

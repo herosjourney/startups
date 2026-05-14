@@ -1,17 +1,58 @@
-# AWS Startups Centralized Repository
+# AWS Startups
 
-A centralized repository for AWS Startups developer plugins, MCPs, and tools — the single home for all current and future AWS Startups developer tooling published across developer marketplaces.
+AI agent plugins, tools, and resources for startup builders on AWS.
 
-## Overview
+## Plugins
 
-This repository hosts plugins, MCPs, and tools built by the AWS Startups team, designed to help startup builders move faster with AI-assisted workflows. Tools in this repo are distributed across marketplaces including Kiro, Claude, and Cursor to name a few.
+| Plugin                           | Description                                                                                                                                   | Status    |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **[migration-to-aws](migrate/)** | Migrate GCP/Azure infrastructure and AI workloads to AWS with resource discovery, architecture mapping, cost analysis, and execution planning | Available |
 
-## Tools
+## Installation
 
-| Tool | Description | Status |
-| ---- | ----------- | ------ |
+### Claude Code
 
-...to be continued
+```bash
+# Add the marketplace
+/plugin marketplace add awslabs/startups
+
+# Install a plugin
+/plugin install migration-to-aws@startups-for-aws
+```
+
+### Cursor
+
+> **Coming soon** — Plugins are not yet published on the Cursor Marketplace.
+
+## Repository Structure
+
+Each top-level folder is owned by a team and contains their plugins, tools, or resources:
+
+```
+awslabs/startups/
+├── .claude-plugin/marketplace.json   # Plugin marketplace (lists all plugins)
+├── migrate/                          # Migration tools and plugins
+└── ...                               # Future team folders
+```
+
+## Adding a Plugin
+
+To add a new plugin to the marketplace:
+
+1. Create your plugin under your team's folder (e.g., `migrate/plugins/my-plugin/`)
+1. Include a `.claude-plugin/plugin.json` manifest in your plugin directory
+1. Add an entry to the root `.claude-plugin/marketplace.json`:
+
+```json
+{
+  "name": "my-plugin",
+  "source": "./my-team-folder/plugins/my-plugin",
+  "version": "1.0.0",
+  "description": "What your plugin does"
+}
+```
+
+1. Submit a PR — requires approval from `@awslabs/startups-admins` (for marketplace changes) and your team's CODEOWNERS (for plugin content)
 
 ## Contributing
 
