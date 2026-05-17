@@ -52,6 +52,7 @@ jobs:
         with:
           app-id: ${{ secrets.WATCHDOG_APP_ID }}
           private-key: ${{ secrets.WATCHDOG_APP_PRIVATE_KEY }}
+          owner: herosjourney
 
       - name: Detect changed Reference_Files
         id: changed-files
