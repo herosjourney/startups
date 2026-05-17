@@ -12,8 +12,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - "features/migration-to-aws/skills/gcp-to-aws/references/**/*.md"
-      - "features/migration-to-aws/skills/gcp-to-aws/SKILL.md"
+      - "migrate/plugins/migration-to-aws/skills/gcp-to-aws/references/**/*.md"
+      - "migrate/plugins/migration-to-aws/skills/gcp-to-aws/SKILL.md"
 
 permissions:
   pull-requests: write
@@ -58,8 +58,8 @@ jobs:
         uses: tj-actions/changed-files@v44
         with:
           files: |
-            features/migration-to-aws/skills/gcp-to-aws/references/**/*.md
-            features/migration-to-aws/skills/gcp-to-aws/SKILL.md
+            migrate/plugins/migration-to-aws/skills/gcp-to-aws/references/**/*.md
+            migrate/plugins/migration-to-aws/skills/gcp-to-aws/SKILL.md
 
       - name: Skip if no Reference_Files changed
         if: steps.changed-files.outputs.any_changed != 'true'
@@ -74,9 +74,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.WATCHDOG_PAT || github.token }}
         run: |
-          # Clone the watchdog repo (replace WATCHDOG_REPO with your actual repo)
+          # Clone the watchdog repo using App token if available, else github.token
           git clone \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ vars.WATCHDOG_REPO || 'aws-samples/migration-watchdog' }}.git" \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ vars.WATCHDOG_REPO || 'herosjourney/migration-watchdog' }}.git" \
             /tmp/migration-watchdog
 
           # The migration_watchdog/ package directory is at the repo root.
@@ -120,6 +120,7 @@ jobs:
           WATCHDOG_TARGET_OWNER: ${{ vars.WATCHDOG_TARGET_OWNER || 'aws-samples' }}
           WATCHDOG_TARGET_REPO: ${{ vars.WATCHDOG_TARGET_REPO || 'sample-agent-skills-for-aws-migration' }}
         run: |
+          pip install httpx --quiet
           python - <<'EOF'
           import json, os, sys
           import httpx
