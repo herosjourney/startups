@@ -746,3 +746,4 @@ Prices per 1M tokens. GPT-5.5 and GPT-5.5 Pro use the same breakpoint pricing st
 | --------------------------- | ------------------------ | ------------------------------------------ |
 | First 2 budgets per account | $0.00                    | Free tier                                  |
 | Additional budgets          | $0.02 per budget per day | Tier 1 emits 1 budget, so effectively free |
+
