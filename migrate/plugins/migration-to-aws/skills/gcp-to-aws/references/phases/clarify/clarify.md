@@ -14,7 +14,7 @@ Questions are organized into **six named categories (A–F)** with documented fi
 | --------------------- | ---------------------------- | --------- | ----------------------------------------------- |
 | `clarify-global.md`   | A — Global/Strategic         | Q1–Q7     | Always                                          |
 | `clarify-compute.md`  | B — Config Gaps, C — Compute | Q8–Q11    | Compute or billing-source resources present     |
-| `clarify-database.md` | D — Database                 | Q12–Q13   | Database resources present                      |
+| `clarify-database.md` | D — Database                 | Q12–Q14-DB | Database resources present                      |
 | `clarify-ai.md`       | F — AI/Bedrock               | Q14–Q22   | `ai-workload-profile.json` exists               |
 | `clarify-ai-only.md`  | _(standalone)_               | Q1–Q10    | AI-only migration (no infrastructure artifacts) |
 
@@ -99,6 +99,7 @@ Before generating questions, scan the inventory to extract values that are alrea
 4. **Billing-only mode** — If `billing-profile.json` exists and `gcp-resource-inventory.json` does NOT exist, check `billing-profile.json → services[]` for Category B question matching.
 5. **AI framework detection** — If `ai-workload-profile.json` exists, check `integration.gateway_type` and `integration.frameworks` for auto-detection of Q14 answer.
 6. **BigQuery / analytics warehouse** — Set `bigquery_present` to **true** if **any** of: (a) a resource in `gcp-resource-inventory.json` has `gcp_type` (or equivalent type field) starting with `google_bigquery_`; (b) `billing-profile.json` lists a service/SKU that clearly indicates **BigQuery** (e.g., service name or SKU contains `BigQuery`). Otherwise `bigquery_present` is **false**.
+7. **Database size auto-detect** — If `gcp-resource-inventory.json` exists and any `google_sql_database_instance` resource has `gcp_config.disk_size_gb`, record that value as the default for Q14-DB and confirm with the user rather than asking from scratch. Set `chosen_by: "extracted"` if confirmed unchanged.
 
 Record extracted values. Questions whose answers are fully determined by extraction will be skipped and the extracted value used directly with `chosen_by: "extracted"`.
 
@@ -113,7 +114,7 @@ Record extracted values. Questions whose answers are fully determined by extract
 | **A**    | Global/Strategic   | **Always fires**                                                               | `clarify-global.md`   | Q1 (location), Q2 (compliance), Q3 (GCP spend), Q4 (funding stage), Q5 (multi-cloud), Q6 (uptime), Q7 (maintenance) |
 | **B**    | Configuration Gaps | `billing-profile.json` exists AND `gcp-resource-inventory.json` does NOT exist | `clarify-compute.md`  | Cloud SQL HA, Cloud Run count, Memorystore memory, Functions gen                                                    |
 | **C**    | Compute Model      | Compute resources present (Cloud Run, Cloud Functions, GKE, GCE)               | `clarify-compute.md`  | Q8 (K8s sentiment), Q9 (WebSocket), Q10 (Cloud Run traffic), Q11 (Cloud Run spend)                                  |
-| **D**    | Database Model     | Database resources present (Cloud SQL, Spanner, Memorystore)                   | `clarify-database.md` | Q12 (DB traffic pattern), Q13 (DB I/O)                                                                              |
+| **D**    | Database Model     | Database resources present (Cloud SQL, Spanner, Memorystore)                   | `clarify-database.md` | Q12 (DB traffic pattern), Q13 (DB I/O), Q14-DB (DB size)                                                            |
 | **E**    | Migration Posture  | **Disabled by default** — requires explicit user opt-in                        | _(inline below)_      | HA upgrades, right-sizing                                                                                           |
 | **F**    | AI/Bedrock         | `ai-workload-profile.json` exists                                              | `clarify-ai.md`       | Q14–Q22                                                                                                             |
 
@@ -152,6 +153,7 @@ Apply these before presenting questions:
 - **Q5 = "Yes, multi-cloud required"** — Immediately record `compute: "eks"`. Skip Q8 (Kubernetes sentiment) — all container workloads resolve to EKS.
 - **Q10/Q11 N/A** — Cloud Run not present, auto-skip.
 - **Q12/Q13 N/A** — Cloud SQL not present, auto-skip.
+- **Q14-DB auto-detect** — If `gcp_config.disk_size_gb` is present on any `google_sql_database_instance`, use it as the default for Q14-DB with `chosen_by: "extracted"` if the user confirms it unchanged.
 - **Q14 auto-detected** — If `integration.gateway_type` is non-null OR `integration.frameworks` is non-empty in `ai-workload-profile.json`, skip Q14. Set `ai_framework` from the detected values with `chosen_by: "extracted"`.
 
 ### Batch Planning
@@ -161,7 +163,7 @@ After determining active categories, organize questions into **up to three batch
 | Batch | Name                   | Categories                                 | Questions                   | Fires When                                |
 | ----- | ---------------------- | ------------------------------------------ | --------------------------- | ----------------------------------------- |
 | **1** | Strategic Requirements | A (Global/Strategic)                       | Q1–Q7 (minus Q4)            | Always                                    |
-| **2** | Infrastructure         | B (Config Gaps), C (Compute), D (Database) | Q8–Q13 + Category B prompts | Any compute or database resources present |
+| **2** | Infrastructure         | B (Config Gaps), C (Compute), D (Database) | Q8–Q14-DB + Category B prompts | Any compute or database resources present |
 | **3** | AI Workloads           | F (AI/Bedrock)                             | Q14–Q22                     | `ai-workload-profile.json` exists         |
 
 **Determine active batches:**
@@ -394,7 +396,8 @@ Assemble all interpreted answers from the completed batches into the final `$MIG
     "cutover_strategy": { "value": "maintenance-window-weekly", "chosen_by": "user" },
     "kubernetes": { "value": "eks-or-ecs", "chosen_by": "user" },
     "database_traffic": { "value": "steady", "chosen_by": "user" },
-    "db_io_workload": { "value": "medium", "chosen_by": "user" }
+    "db_io_workload": { "value": "medium", "chosen_by": "user" },
+    "db_size": { "value": "10-100GB", "chosen_by": "user" }
   },
   "ai_constraints": {
     "ai_framework": { "value": ["direct"], "chosen_by": "extracted" },
@@ -449,6 +452,7 @@ After writing `preferences.json`, delete `$MIGRATION_DIR/preferences-draft.json`
 | Q11 — Cloud Run spend   | B ($100–$500)        | `cloud_run_monthly_spend: "$100-$500"`            |
 | Q12 — DB traffic        | A (steady)           | `database_traffic: "steady"`                      |
 | Q13 — DB I/O            | B (medium)           | `db_io_workload: "medium"`                        |
+| Q14-DB — DB size        | E (unknown)          | `db_size: "unknown"` → default to pgcopydb        |
 | Q14 — AI framework      | _(auto-detect)_      | `ai_framework` from code detection                |
 | Q15 — AI spend          | B ($500–$2K)         | `ai_monthly_spend: "$500-$2K"`                    |
 | Q16 — AI priority       | E (balanced)         | `ai_priority: "balanced"`                         |

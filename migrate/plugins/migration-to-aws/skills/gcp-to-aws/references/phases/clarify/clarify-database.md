@@ -105,7 +105,7 @@ Default: B — `db_io_workload: "medium"`.
 
 ---
 
-## Q14 — Approximately how large is your primary database?
+## Q14-DB — Approximately how large is your primary database?
 
 _Fire when:_ Cloud SQL (PostgreSQL or MySQL) present in inventory. Skip when: no Cloud SQL, or engine is SQL Server (DMS is always recommended for SQL Server regardless of size).
 
@@ -132,11 +132,11 @@ _Fire when:_ Cloud SQL (PostgreSQL or MySQL) present in inventory. Skip when: no
 Interpret:
 
 ```
-A -> db_size: "<10GB"    — pg_dump/pg_restore recommended
-B -> db_size: "10-100GB" — pgcopydb recommended
-C -> db_size: "100-500GB" — pgcopydb required; flag extended window
-D -> db_size: ">500GB"   — AWS DMS strongly recommended; flag in migration plan
-E -> db_size: "unknown"  — default to pgcopydb; flag for verification
+A -> design_constraints.db_size: { value: "<10GB", chosen_by: "user" }    — pg_dump/pg_restore recommended
+B -> design_constraints.db_size: { value: "10-100GB", chosen_by: "user" } — pgcopydb recommended
+C -> design_constraints.db_size: { value: "100-500GB", chosen_by: "user" } — pgcopydb required; flag extended window
+D -> design_constraints.db_size: { value: ">500GB", chosen_by: "user" }   — AWS DMS strongly recommended; flag in migration plan
+E -> design_constraints.db_size: { value: "unknown", chosen_by: "default" } — default to pgcopydb; flag for verification
 ```
 
-Default: E — `db_size: "unknown"` (default to pgcopydb; safer than pg_dump at unknown scale).
+Default: E — `design_constraints.db_size: { value: "unknown", chosen_by: "default" }` (default to pgcopydb; safer than pg_dump at unknown scale).
