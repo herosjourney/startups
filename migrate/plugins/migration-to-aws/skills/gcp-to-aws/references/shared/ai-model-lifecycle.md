@@ -48,14 +48,13 @@ On each run, compute `days_to_eol = EOL date − today` for every model in the L
 
 ---
 
-## Legacy / EOL Models (as of May 17, 2026)
+## Legacy / EOL Models (as of May 20, 2026)
 
 Check the [model lifecycle page](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html) for the authoritative list. The table below captures models referenced elsewhere in this plugin. **Recompute the Status column on each run** using `days_to_eol = EOL date − today`.
 
 | Model                    | Model ID                                    | EOL Date     | Days to EOL | Status       | Active Replacement       |
 | ------------------------ | ------------------------------------------- | ------------ | ----------- | ------------ | ------------------------ |
-
-| Claude Opus 4            | `anthropic.claude-opus-4-20250514-v1:0`     | May 31, 2026 | 14          | **excluded** | Claude Opus 4.5 / 4.6    |
+| Claude Opus 4            | `anthropic.claude-opus-4-20250514-v1:0`     | May 31, 2026 | 11          | **excluded** | Claude Opus 4.5 / 4.6    |
 | Claude 3.5 Haiku         | `anthropic.claude-3-5-haiku-20241022-v1:0`  | Jun 19, 2026 | 33          | **excluded** | Claude Haiku 4.5         |
 | Titan Image Generator v2 | `amazon.titan-image-generator-v2:0`         | Jun 30, 2026 | 44          | **excluded** | Nova Canvas              |
 | Llama 3.2 (all sizes)    | `meta.llama3-2-*-instruct-v1:0`             | Jul 7, 2026  | 51          | **excluded** | Llama 4 Scout / Maverick |
@@ -112,4 +111,8 @@ When refreshing the cache, recompute `days_to_eol` and update the Status column 
 
 ## Refresh Cadence
 
-This file should be reviewed when refreshing `pricing-cache.md`. The authoritative source is always the [Bedrock model lifecycle page](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html).
+**On every design run:** The agent MUST recompute `days_to_eol = EOL date − today` for every row in the table above and apply the four rules in "Applying the rules" before making any model recommendation. The static Days to EOL column in this file is a snapshot only — do not use it directly without recomputing.
+
+**Periodic table refresh:** When the table itself needs updating (new models added, EOL dates changed by AWS, or past-EOL rows to remove), update this file and `pricing-cache.md` together. The authoritative source is always the [Bedrock model lifecycle page](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html).
+
+**Past-EOL rows:** Once `days_to_eol ≤ 0`, remove the row from this table entirely on the next periodic refresh — past-EOL models serve no reference value and create confusion.
