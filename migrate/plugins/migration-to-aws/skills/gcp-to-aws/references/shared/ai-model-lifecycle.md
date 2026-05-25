@@ -48,19 +48,19 @@ On each run, compute `days_to_eol = EOL date − today` for every model in the L
 
 ---
 
-## Legacy / EOL Models (as of May 20, 2026)
+## Legacy / EOL Models (as of May 23, 2026)
 
 Check the [model lifecycle page](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html) for the authoritative list. The table below captures models referenced elsewhere in this plugin. **Recompute the Status column on each run** using `days_to_eol = EOL date − today`.
 
 | Model                    | Model ID                                    | EOL Date     | Days to EOL | Status       | Active Replacement       |
 | ------------------------ | ------------------------------------------- | ------------ | ----------- | ------------ | ------------------------ |
-| Claude Opus 4            | `anthropic.claude-opus-4-20250514-v1:0`     | May 31, 2026 | 11          | **excluded** | Claude Opus 4.5 / 4.6    |
-| Claude 3.5 Haiku         | `anthropic.claude-3-5-haiku-20241022-v1:0`  | Jun 19, 2026 | 33          | **excluded** | Claude Haiku 4.5         |
-| Titan Image Generator v2 | `amazon.titan-image-generator-v2:0`         | Jun 30, 2026 | 44          | **excluded** | Nova Canvas              |
-| Llama 3.2 (all sizes)    | `meta.llama3-2-*-instruct-v1:0`             | Jul 7, 2026  | 51          | **excluded** | Llama 4 Scout / Maverick |
-| Llama 3.1 405B Instruct  | `meta.llama3-1-405b-instruct-v1:0`          | Jul 7, 2026  | 88          | **excluded** | Llama 4 Maverick         |
-| Claude 3.5 Sonnet v2     | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Jul 30, 2026 | 111         | legacy       | Claude Sonnet 4.5 / 4.6  |
-| Command R / R+           | `cohere.command-r-v1:0` / `plus`            | Aug 19, 2026 | 131         | legacy       | —                        |
+| Claude Opus 4            | `anthropic.claude-opus-4-20250514-v1:0`     | May 31, 2026 | 8           | **excluded** | Claude Opus 4.5 / 4.6    |
+| Claude 3.5 Haiku         | `anthropic.claude-3-5-haiku-20241022-v1:0`  | Jun 19, 2026 | 27          | **excluded** | Claude Haiku 4.5         |
+| Titan Image Generator v2 | `amazon.titan-image-generator-v2:0`         | Jun 30, 2026 | 38          | **excluded** | Nova Canvas              |
+| Llama 3.2 (all sizes)    | `meta.llama3-2-*-instruct-v1:0`             | Jul 7, 2026  | 45          | **excluded** | Llama 4 Scout / Maverick |
+| Llama 3.1 405B Instruct  | `meta.llama3-1-405b-instruct-v1:0`          | Jul 7, 2026  | 45          | **excluded** | Llama 4 Maverick         |
+| Claude 3.5 Sonnet v2     | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Jul 30, 2026 | 68          | legacy       | Claude Sonnet 4.5 / 4.6  |
+| Command R / R+           | `cohere.command-r-v1:0` / `plus`            | Aug 19, 2026 | 88          | legacy       | —                        |
 | Nova Premier v1          | `amazon.nova-premier-v1:0`                  | Sep 14, 2026 | 157         | legacy       | Nova 2 Pro (Preview)     |
 | Nova Sonic v1            | `amazon.nova-sonic-v1:0`                    | Sep 14, 2026 | 157         | legacy       | Nova 2 Sonic             |
 | Nova Canvas v1           | `amazon.nova-canvas-v1:0`                   | Sep 30, 2026 | 173         | legacy       | —                        |
