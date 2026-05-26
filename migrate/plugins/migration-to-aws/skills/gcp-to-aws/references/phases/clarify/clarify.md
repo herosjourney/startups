@@ -89,6 +89,44 @@ Present a discovery summary:
 
 ---
 
+## Step 1.5: Fast-Path Gate (Simple Infra Only)
+
+**After presenting the Discovery Summary**, check `$MIGRATION_DIR/migration-preview.json` for fast-path eligibility:
+
+```
+IF migration-preview.json exists
+   AND eligible_for_clarify_fast_path == true
+THEN offer fast-path
+ELSE skip to Step 2 (full Clarify)
+```
+
+**If eligible**, present this offer before any questions:
+
+> "Your stack looks straightforward — [primary_resource_count] resource(s), no database, no AI detected.
+>
+> Want to use smart defaults and answer just 3 questions instead of up to 22?
+>
+> **[Yes — 3 questions]** / **[No — ask me everything]**"
+
+**If user chooses Yes (fast-path):**
+
+1. Ask only these three questions (load exact wording from their respective category files):
+   - **Q1** (target region) — from `clarify-global.md`
+   - **Q2** (compliance) — from `clarify-global.md`, presented as a one-liner: "Any compliance requirements? (A) None (B) SOC2 (C) PCI (D) HIPAA (E) FedRAMP (F) GDPR/CCPA"
+   - **Q7** (maintenance window / cutover strategy) — from `clarify-global.md`
+
+2. Apply documented defaults for ALL other questions. Record each in `metadata.questions_defaulted`.
+
+3. Still run the BigQuery advisory if `bigquery_present` is true (Step 4 mandatory callout).
+
+4. Write `preferences.json` with `metadata.clarify_mode: "fast_path"` and proceed to Step 5. Skip Steps 2–4 entirely.
+
+**Agentic hard block:** Even if `migration-preview.json` is absent or `eligible_for_clarify_fast_path` is true, if `ai-workload-profile.json` exists with `agentic_profile.is_agentic == true`, **never offer fast-path**. Agentic workloads require Q23–Q26 (Category G) which are mandatory once PR #16 is merged.
+
+**If user chooses No, or fast-path is not eligible:** Continue to Step 2 (full Clarify).
+
+---
+
 ## Step 2: Extract Known Information
 
 Before generating questions, scan the inventory to extract values that are already known:
@@ -383,6 +421,7 @@ Assemble all interpreted answers from the completed batches into the final `$MIG
     "questions_skipped_early_exit": ["Q8"],
     "questions_skipped_not_applicable": ["Q4", "Q10", "Q11", "Q12", "Q13"],
     "category_e_enabled": false,
+    "clarify_mode": "full",
     "inventory_clarifications": {}
   },
   "design_constraints": {
@@ -479,6 +518,7 @@ Before handing off to Design:
 - [ ] `ai_constraints.ai_framework` is an array (Q14 is multi-select)
 - [ ] Output is valid JSON
 - [ ] `preferences-draft.json` has been deleted (if it existed)
+- [ ] `metadata.clarify_mode` is set to `"fast_path"` or `"full"`
 
 ---
 
