@@ -250,3 +250,161 @@ Tier by complexity: simple → Nova Micro/Llama 4 Scout (60%), moderate → Llam
 ## OpenAI Pricing Tiers
 
 OpenAI offers 4 tiers: Batch (50% off, 24hr), Flex (30-50% off, higher latency), Standard (baseline), Priority (2x, lowest latency). This guide uses Standard tier for comparison.
+
+---
+
+## Gateway and Proxy Migration Patterns
+
+Many startups route OpenAI calls through a gateway or proxy rather than calling the OpenAI API directly. The migration path differs significantly depending on the integration pattern.
+
+### Detecting the Integration Pattern
+
+Before recommending a migration path, check `ai-workload-profile.json` → `integration.gateway_type` and `integration.pattern`:
+
+| `gateway_type` | `integration.pattern` | What it means | Migration path |
+|---|---|---|---|
+| `null` | `direct_sdk` | Direct OpenAI SDK calls | Mantle env-var swap or boto3 Converse API |
+| `openrouter` | `llm_router` | OpenRouter gateway (OPENROUTER_API_KEY or base_url override) | Reconfigure gateway to Bedrock backend, or remove gateway |
+| `litellm` | `llm_router` | LiteLLM proxy (LITELLM_API_KEY or LITELLM_PROXY_URL) | Reconfigure LiteLLM to use Bedrock provider, or remove proxy |
+| `portkey` / `helicone` | `llm_router` | Observability gateway | Reconfigure gateway target to Bedrock endpoint |
+
+### OpenRouter → Bedrock
+
+OpenRouter users configure the OpenAI SDK with a custom `base_url` (`https://openrouter.ai/api/v1`) and `OPENROUTER_API_KEY`. The application code looks identical to direct OpenAI SDK usage — the gateway is invisible at the code level.
+
+**Two migration paths:**
+
+**Path A — Keep OpenRouter, add Bedrock as a provider (lowest effort):**
+OpenRouter supports Bedrock models via `anthropic/claude-sonnet-4-6` or `amazon/nova-lite-v1` model strings. Change the model string; no other code changes needed. Useful when OpenRouter's multi-model routing or observability features are actively used.
+
+**Path B — Remove OpenRouter, migrate to Mantle (recommended for AWS consolidation):**
+```python
+# Before (OpenRouter)
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.environ["OPENROUTER_API_KEY"],
+)
+
+# After (Bedrock Mantle)
+client = OpenAI(
+    base_url=f"https://bedrock-mantle.{region}.api.aws/v1",
+    api_key=bedrock_api_key,
+)
+# Change model string: "openai/gpt-4o" → "anthropic.claude-sonnet-4-6"
+```
+
+**Cost note:** OpenRouter charges a markup on top of provider pricing. Cost comparisons should use OpenRouter's actual billed rate (visible in their dashboard), not OpenAI direct pricing. Bedrock savings may be larger than the model-to-model table suggests.
+
+### LiteLLM Proxy → Bedrock
+
+LiteLLM proxy users configure the OpenAI SDK to point at a self-hosted or managed LiteLLM instance. Detection signals: `LITELLM_API_KEY`, `LITELLM_PROXY_URL`, or `LITELLM_PROXY_BASE_URL` environment variables.
+
+**Two migration paths:**
+
+**Path A — Keep LiteLLM, reconfigure to route to Bedrock (lowest effort):**
+LiteLLM supports Bedrock natively via `bedrock/anthropic.claude-sonnet-4-6` model strings. Update the LiteLLM config to add Bedrock as a provider; no application code changes needed.
+
+```yaml
+# litellm_config.yaml — add Bedrock provider
+model_list:
+  - model_name: gpt-4o          # keep existing model alias
+    litellm_params:
+      model: bedrock/anthropic.claude-sonnet-4-6
+      aws_region_name: us-east-1
+```
+
+**Path B — Remove LiteLLM, migrate to Mantle or boto3 (recommended for AWS consolidation):**
+Same as direct SDK migration — set `OPENAI_BASE_URL` to Mantle endpoint and update model strings.
+
+**LiteLLM model string mapping for Bedrock:**
+
+| OpenAI model | LiteLLM Bedrock string |
+|---|---|
+| `gpt-4o` | `bedrock/anthropic.claude-sonnet-4-6` |
+| `gpt-4o-mini` | `bedrock/amazon.nova-lite-v1:0` |
+| `gpt-3.5-turbo` | `bedrock/meta.llama4-maverick-17b-instruct-v1:0` |
+
+---
+
+## Framework-Specific Migration Notes
+
+### CrewAI + OpenAI → Bedrock
+
+CrewAI uses LiteLLM under the hood for model calls. The migration path is a provider swap, not a framework rewrite.
+
+**Retarget path (recommended — keep CrewAI, swap model provider):**
+
+```python
+# Before
+from crewai import Agent, Crew, Task
+
+agent = Agent(
+    role="Analyst",
+    goal="...",
+    backstory="...",
+    llm="gpt-4o",  # or llm=ChatOpenAI(model="gpt-4o")
+)
+
+# After — swap to Bedrock via LiteLLM string
+agent = Agent(
+    role="Analyst",
+    goal="...",
+    backstory="...",
+    llm="bedrock/anthropic.claude-sonnet-4-6",
+)
+```
+
+For hierarchical crews, also update `manager_llm`:
+```python
+crew = Crew(
+    agents=[...],
+    tasks=[...],
+    process=Process.hierarchical,
+    manager_llm="bedrock/anthropic.claude-sonnet-4-6",
+)
+```
+
+**Tool-calling compatibility:** Claude Sonnet 4.6 on Bedrock has best-in-class tool use and is the recommended target for CrewAI agents that use tools. Nova models have different tool-calling semantics — test before using Nova with tool-heavy crews.
+
+**When to consider Strands instead of retarget:** If the crew architecture is simple (2-3 agents, linear task flow) and the team wants to consolidate on AWS-native tooling, Strands Agents is a viable alternative. See `design-ref-agentic-to-agentcore.md` for the Strands migration path. For complex hierarchical crews with many agents and role-based delegation, retarget is lower risk.
+
+### OpenAI Agents SDK → Bedrock
+
+The OpenAI Agents SDK is tightly coupled to OpenAI's proprietary agent runtime. This is the **highest-effort migration path** — it requires framework replacement, not just a model swap.
+
+**Migration options (in order of effort):**
+
+1. **Strands Agents (recommended for AWS-native):** Primitive-by-primitive mapping:
+
+| OpenAI Agents SDK | Strands Agents |
+|---|---|
+| `Agent(name, instructions, tools)` | `@agent` with `system_prompt` + `@tool` decorators |
+| `Runner.run(agent, input)` | `agent(input)` |
+| Handoffs between agents | `agents_as_tools` pattern or multi-agent graph |
+| `function_tool` | `@tool` decorator |
+| Sessions / conversation state | AgentCore Memory or session context |
+| Guardrails | Bedrock Guardrails |
+
+2. **LangGraph (if team prefers Python-native orchestration):** Map `Agent` → LangGraph node, handoffs → conditional edges, tools → LangChain tools with `ChatBedrockConverse`.
+
+3. **Bedrock Agents (if managed infrastructure is preferred):** Higher setup cost but fully managed — action groups replace function tools, knowledge bases replace file search.
+
+**Effort estimate:** 2–4 weeks for a typical Agents SDK application. The dominant cost is rewriting the agent orchestration logic, not the model swap.
+
+---
+
+## High-Volume Workload Warning (Bedrock Mantle)
+
+**Before recommending Mantle for high-volume workloads, check throughput requirements.**
+
+Bedrock Mantle runs on a **shared account limit of 10,000 RPM** across all Mantle users in a region — this is not a per-customer quota. For workloads above ~1,000 RPM, this shared limit becomes a real constraint.
+
+| Workload Volume | Risk | Recommendation |
+|---|---|---|
+| < 100 RPM | Low | Mantle is a good fit |
+| 100–1,000 RPM | Medium | Monitor for 429s at peak; have a fallback ready |
+| > 1,000 RPM | High | Use `bedrock-runtime` (Converse API) directly — not subject to the shared Mantle RPM cap |
+
+**For high-volume migrations:** Use the boto3 Converse API path instead of Mantle. Per-customer quota increases are available via AWS Service Quotas for the Converse API; they are not available for the shared Mantle limit.
+
+**Source:** [Bedrock Mantle scaling throughput best practices](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html)
