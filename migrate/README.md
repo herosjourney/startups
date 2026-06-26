@@ -114,7 +114,7 @@ The skill creates a `.migration/<session>/` directory in the current working dir
 
 | Category       | Heroku → AWS                                                                                       |
 | -------------- | -------------------------------------------------------------------------------------------------- |
-| Compute        | Dynos (all types) → Fargate (CPU/memory mapped via Dyno Type Table)                                |
+| Compute        | Dynos (all types) → Fargate (default) or EKS (when user selects Kubernetes preference)             |
 | Databases      | Heroku Postgres → RDS or Aurora (plan-matched sizing, DMS/pg_dump/bucardo/wal-g migration methods) |
 | Caching        | Heroku Redis → ElastiCache (plan-matched node types, HA/encryption preserved)                      |
 | Streaming      | Heroku Kafka → Amazon MSK (broker sizing, topic/partition/replication preserved)                   |
