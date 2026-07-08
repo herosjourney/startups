@@ -286,24 +286,11 @@ A) Most conservative (highest HA) | B) Use [instance name] as primary | C) Ask m
 | `spend: $5K-$20K`                                | Set `gcp_monthly_spend`, `chosen_by: "user"`       | No if band is explicit    |
 | Vague correction ("that's wrong")                | Remove that item from skipped list                 | Yes — ask full question   |
 
-For each override: remove the associated question ID(s) from `metadata.questions_skipped_extracted`, set `chosen_by: "user"`, and record in `metadata.detected_settings` with `"confirmed": false` and `"corrected_by_user": true`.
+For each override: remove the associated question ID(s) from `metadata.questions_skipped_extracted` and set `chosen_by: "user"` on the constraint (this clears the `source` field since it's no longer extracted).
 
-When user confirms: mark all rows `"confirmed": true` in `metadata.detected_settings`.
+When user confirms all detected values: no further action needed — the constraint objects already carry `chosen_by: "extracted"` and `source`.
 
-**`metadata.detected_settings` schema** (write to `preferences.json` at Step 5):
-
-```json
-"detected_settings": [
-  {
-    "key": "availability",
-    "value": "single-az",
-    "source": "terraform:availability_type=ZONAL",
-    "questions_skipped": ["Q6"],
-    "confirmed": true,
-    "corrected_by_user": false
-  }
-]
-```
+**Extracted constraint `source` field:** When writing a constraint with `chosen_by: "extracted"`, include the `source` field on the constraint object itself with the raw provenance signal (e.g. `"terraform:availability_type=ZONAL"`, `"inventory:region=us-west1"`, `"ai-profile:sdk_imports"`). See `references/shared/schema-preferences.md` for the full wrapper spec.
 
 ---
 
@@ -604,16 +591,6 @@ If `preferences-draft.json` exists, use it as the base — merge in the final ba
     "questions_skipped_extracted": ["Q14"],
     "questions_skipped_early_exit": ["Q8"],
     "questions_skipped_not_applicable": ["Q4", "Q10", "Q11", "Q12", "Q13", "Q13b"],
-    "detected_settings": [
-      {
-        "key": "availability",
-        "value": "multi-az",
-        "source": "terraform:availability_type=REGIONAL",
-        "questions_skipped": ["Q6"],
-        "confirmed": true,
-        "corrected_by_user": false
-      }
-    ],
     "category_e_enabled": false,
     "clarify_mode": "full",
     "inventory_clarifications": {}
@@ -659,6 +636,7 @@ If `preferences-draft.json` exists, use it as the base — merge in the final ba
     "ai_framework": {
       "value": ["direct"],
       "chosen_by": "extracted",
+      "source": "ai-profile:integration.pattern=direct_sdk",
       "prompt": "Detected: direct SDK integration from ai-workload-profile.json",
       "design_consequence": "Direct SDK pattern → Converse API adapter with feature-flag cutover",
       "question_id": "Q14"
@@ -684,20 +662,20 @@ If `preferences-draft.json` exists, use it as the base — merge in the final ba
 
 Full schema and constraint catalog: `references/shared/schema-preferences.md`.
 
-1. Every entry in `design_constraints`, `ai_constraints`, and `startup_constraints` (when present) is an object with **`value`**, **`chosen_by`**, **`prompt`**, and **`design_consequence`** fields. Optional **`question_id`** when mapped to the Q1–Q27 catalog.
+1. Every entry in `design_constraints`, `ai_constraints`, and `startup_constraints` (when present) is an object with **`value`**, **`chosen_by`**, **`prompt`**, and **`design_consequence`** fields. Optional **`question_id`** when mapped to the Q1–Q27 catalog. Optional **`source`** when `chosen_by` is `"extracted"`.
 2. **`prompt`:** verbatim question from the category file when `chosen_by` is `"user"`; detection label when `"extracted"`; question + `" (default applied)"` when `"default"`; derivation label when `"derived"`.
 3. **`design_consequence`:** one sentence from the category file's Recommendation Impact for the selected answer, or the catalog template in `schema-preferences.md` with `[value]` substituted.
 4. `chosen_by` values: `"user"` (explicitly answered), `"default"` (system default applied — includes "I don't know" answers), `"extracted"` (inferred from inventory), `"derived"` (computed from combination of answers + detected capabilities).
-5. Only write a key to `design_constraints` / `ai_constraints` if the answer produces a constraint. Absent keys mean "no constraint — Design decides."
+5. **`source`:** raw provenance signal (e.g. `"terraform:availability_type=ZONAL"`). Required when `chosen_by` is `"extracted"`. Omit for all others.
+6. Only write a key to `design_constraints` / `ai_constraints` if the answer produces a constraint. Absent keys mean "no constraint — Design decides."
 6. Do not write null values. Do not omit `prompt` or `design_consequence` on any written constraint.
 7. For billing-source inventories, `metadata.inventory_clarifications` records Category B answers.
 8. `metadata.questions_skipped_early_exit` records questions skipped due to early-exit logic (e.g., Q8 skipped because Q5=multi-cloud).
 9. `metadata.questions_skipped_extracted` records questions skipped because inventory already provided the answer.
-10. `metadata.detected_settings` records each auto-detected setting with source, confirmation status, and whether the user corrected it in Step 2.5.
-11. `metadata.questions_skipped_not_applicable` records questions skipped because the relevant service wasn't in the inventory.
-12. `ai_constraints` section is present ONLY if Category F fired. Omit entirely if no AI artifacts exist.
-13. `ai_constraints.ai_capabilities_required` is the UNION of detected capabilities from `ai-workload-profile.json` + critical feature from Q17 + vision from Q20. `chosen_by` is `"derived"`.
-14. `ai_constraints.ai_framework` is an array (Q14 is select-all-that-apply). If auto-detected, `chosen_by` is `"extracted"`.
+10. `metadata.questions_skipped_not_applicable` records questions skipped because the relevant service wasn't in the inventory.
+11. `ai_constraints` section is present ONLY if Category F fired. Omit entirely if no AI artifacts exist.
+12. `ai_constraints.ai_capabilities_required` is the UNION of detected capabilities from `ai-workload-profile.json` + critical feature from Q17 + vision from Q20. `chosen_by` is `"derived"`.
+13. `ai_constraints.ai_framework` is an array (Q14 is select-all-that-apply). If auto-detected, `chosen_by` is `"extracted"` with `source`.
 
 After writing `preferences.json`, delete `$MIGRATION_DIR/preferences-draft.json` if it exists.
 
@@ -738,7 +716,7 @@ After writing `preferences.json`, delete `$MIGRATION_DIR/preferences-draft.json`
 Before handing off to Design:
 
 - [ ] If extractions were made, Step 2.5 detected-settings confirmation was shown and user responded before questions
-- [ ] If extractions were made, `metadata.detected_settings` records each inferred value with `confirmed` status
+- [ ] If extractions were made, every constraint with `chosen_by: "extracted"` has a `source` field with the raw provenance signal
 - [ ] If `bigquery_present` was **true**, the Step 4 BigQuery specialist advisory was shown before questions — **or**, if Step 0 option A (reuse preferences), the same advisory was shown after BigQuery detection
 - [ ] `preferences.json` written to `$MIGRATION_DIR/`
 - [ ] `design_constraints.target_region` is populated with `value` and `chosen_by`

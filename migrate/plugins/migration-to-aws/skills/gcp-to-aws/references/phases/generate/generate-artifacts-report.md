@@ -378,18 +378,19 @@ Do not list files that were not generated.
 
 Key decisions that shaped this migration plan. Read every object in `design_constraints`, `ai_constraints`, and `startup_constraints` (when present). Schema: `references/shared/schema-preferences.md`.
 
-Render an HTML table with **four columns**:
+Render an HTML table with **five columns**:
 
 | Column | Source |
 | ------ | ------ |
 | **Question / assumption** | `prompt` on each constraint object |
 | **Your choice** | formatted `value` (human-readable; expand arrays) |
 | **Source** | `chosen_by` → "User answer", "Extracted from infrastructure", "Default applied", or "Derived" |
+| **Source signal** | `source` field when present (extracted rows only); leave cell empty for user/default/derived rows |
 | **Design consequence** | `design_consequence` on each constraint object |
 
 **Sort order:** user-answered rows first, then extracted, then default, then derived.
 
-**Legacy fallback:** If a constraint object lacks `prompt` or `design_consequence` (pre-extension runs), use the catalog in `schema-preferences.md` keyed by constraint name — never omit the appendix or leave cells empty.
+**Legacy fallback:** If a constraint object lacks `prompt` or `design_consequence` (pre-extension runs), use the catalog in `schema-preferences.md` keyed by constraint name — never omit the appendix or leave cells empty. If `source` is absent on extracted rows (pre-extension), leave the Source signal cell empty.
 
 **Do not** reduce this section to a key/value dump without question text and consequences.
 
@@ -640,7 +641,7 @@ After generating the HTML file, verify:
 13. **Readability**: No literal `Rubric:` and no numbered headings (`Section 0`, `Section 1b`, `<hN>Section N — …`); security teaser up top with full table in the appendix; tables have `<caption>`/`scope`; acronyms expanded; one-sentence recommendation banner in decision summary
 14. **Reader vocabulary**: No artifact filenames (`*.json`) or Terraform resource IDs (`aws_*.*`) inside `decision-summary` / `exec-*` sections — those names live only in the technical appendices.
 15. **Consistent labels**: The recommended model and the chosen cost tier use one consistent name across verdict, tables, and appendices (no "recommended / selected / design target" drift for the same item).
-16. **Configuration provenance**: When `preferences.json` exists, `appendix-config` table has Question/assumption, Your choice, Source, and Design consequence columns populated from `prompt` and `design_consequence` fields (see `schema-preferences.md`).
+16. **Configuration provenance**: When `preferences.json` exists, `appendix-config` table has Question/assumption, Your choice, Source, Source signal, and Design consequence columns populated from `prompt`, `chosen_by`, `source`, and `design_consequence` fields (see `schema-preferences.md`).
 17. **Ordered next steps**: `Key decisions ahead` and `Next steps` in `decision-summary` use `<ol>`, not `<ul>`.
 
 **Run automated validator (mandatory when HTML was written):**

@@ -15,6 +15,7 @@ Every key in `design_constraints`, `ai_constraints`, and `startup_constraints` (
 | `prompt` | string | yes | Question shown to the user, or a short detection label when skipped |
 | `design_consequence` | string | yes | One sentence: how this choice shaped the AWS design, estimate, or plan |
 | `question_id` | string | no | Catalog ID (`Q1`–`Q27`) when mapped; omit for derived unions |
+| `source` | string | no | Raw provenance signal for extracted values (e.g. `"terraform:availability_type=ZONAL"`). Write only when `chosen_by` is `"extracted"`. Omit for user/default/derived. |
 
 **Do not write null values.** Omit keys that produce no constraint.
 
@@ -38,7 +39,7 @@ Use the **Recommendation Impact** row for the selected answer from the category 
 ```json
 {
   "metadata": { "...": "..." },
-  "design_constraints": { "<key>": { "value", "chosen_by", "prompt", "design_consequence", "question_id?" } },
+  "design_constraints": { "<key>": { "value", "chosen_by", "prompt", "design_consequence", "question_id?", "source?" } },
   "ai_constraints": { "...": "..." },
   "startup_constraints": { "...": "..." }
 }
@@ -89,6 +90,7 @@ Generate phase reads **every** constraint object and renders:
 | Question / assumption | `prompt` |
 | Your choice | formatted `value` |
 | Source | `chosen_by` → User answer / Extracted / Default / Derived |
+| Source signal | `source` (only for Extracted rows; omit column cell for others) |
 | Design consequence | `design_consequence` |
 
 Sort rows: user-answered first, then extracted, then default, then derived. Include `startup_constraints` when present.
@@ -104,3 +106,4 @@ Before marking Clarify complete:
 1. Every written constraint has `value`, `chosen_by`, `prompt`, and `design_consequence`.
 2. No empty strings for `prompt` or `design_consequence`.
 3. `question_id` present when the constraint maps to a catalog question.
+4. `source` present on every constraint where `chosen_by` is `"extracted"`. Omit for all others.

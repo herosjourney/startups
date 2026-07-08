@@ -8,6 +8,7 @@
     "target_region": {
       "value": "us-west-2",
       "chosen_by": "extracted",
+      "source": "inventory:region=us-west1",
       "prompt": "Detected: GCP region us-west1",
       "design_consequence": "All resources deploy in us-west-2; Bedrock availability verified",
       "question_id": "Q1"
@@ -29,6 +30,7 @@
     "availability": {
       "value": "single-az",
       "chosen_by": "extracted",
+      "source": "terraform:availability_type=ZONAL",
       "prompt": "Detected: Cloud SQL ZONAL → single-AZ availability",
       "design_consequence": "RDS db.t4g.micro single-AZ (not Multi-AZ)",
       "question_id": "Q6"
