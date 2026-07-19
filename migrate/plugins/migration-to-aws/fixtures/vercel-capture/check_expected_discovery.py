@@ -77,6 +77,26 @@ def main() -> int:
     for d in exp["domains_must_include"]:
         check(d in domains, f"domain {d} missing")
 
+    # Billing data (FOCUS charges → usage_metrics.billing_data)
+    bd_exp = exp.get("billing_data")
+    if bd_exp and bd_exp.get("must_present"):
+        um = disc.get("usage_metrics") or {}
+        bd = um.get("billing_data")
+        check(isinstance(bd, dict), "usage_metrics.billing_data missing")
+        if isinstance(bd, dict):
+            check(bd.get("source") == bd_exp["source"], f"billing_data.source={bd.get('source')} want {bd_exp['source']}")
+            check(bd.get("currency") == bd_exp["currency"], f"billing_data.currency={bd.get('currency')}")
+            check(
+                abs(float(bd.get("monthly_total", -1)) - float(bd_exp["monthly_total"])) < 0.01,
+                f"billing_data.monthly_total={bd.get('monthly_total')} want {bd_exp['monthly_total']}",
+            )
+            by_svc = bd.get("by_service") or {}
+            for svc in bd_exp.get("by_service_must_include", []):
+                check(svc in by_svc, f"billing_data.by_service missing {svc}")
+            by_proj = bd.get("by_project") or {}
+            for pid in bd_exp.get("by_project_must_include", []):
+                check(pid in by_proj, f"billing_data.by_project missing {pid}")
+
     # Probe absent
     check(not disc.get("header_probe_results"), "header_probe_results must be absent/empty (probe.attempted false)")
 

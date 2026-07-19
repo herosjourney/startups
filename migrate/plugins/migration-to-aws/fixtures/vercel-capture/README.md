@@ -13,10 +13,12 @@ without a Vercel account or a real Next.js build. The synthetic project
   the manifests do NOT classify (must land `dynamic` at LOW confidence with the
   Adapter-API `upgrade_input`).
 - **API captures with realistic gaps** — crons endpoint `skipped` (404 on plan;
-  the `vercel.json` cron remains the source), usage aggregates `skipped`; env
-  capture already reduced to KEY NAMES ONLY, deliberately including
-  secret-looking names (`STRIPE_SECRET_KEY`, `KV_REST_API_TOKEN`) — if a value
-  ever appears in output, the projection rule broke.
+  the `vercel.json` cron remains the source); FOCUS `/v1/billing/charges`
+  present (`billing-charges.jsonl`) so Estimate can skip Clarify Q6; contract
+  commitments empty; `vercel usage` CLI fallback `skipped` because charges
+  succeeded; env capture already reduced to KEY NAMES ONLY, deliberately
+  including secret-looking names (`STRIPE_SECRET_KEY`, `KV_REST_API_TOKEN`) —
+  if a value ever appears in output, the projection rule broke.
 - **Storage integrations** — a KV store and a Postgres store feed
   `peripherals[]` (the separability check's input).
 - **No probe** — `probe.attempted: false`; the probe fragment must not run.
@@ -41,7 +43,7 @@ without a Vercel account or a real Next.js build. The synthetic project
 
 **What a run must never produce:** env var values or token material anywhere;
 any network call or `next build`; AWS recommendations inside discover
-artifacts; a halt caused by the skipped crons/usage captures.
+artifacts; a halt caused by the skipped crons / unused CLI-usage fallback.
 
 ## Regenerating / extending
 

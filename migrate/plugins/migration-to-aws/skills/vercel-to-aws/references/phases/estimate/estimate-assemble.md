@@ -36,6 +36,7 @@ metadata:
   "accuracy_confidence": "+/-5-10% for cached infrastructure pricing",
   "current_costs": {
     "source": "api_billing_data" | "user_provided" | "plan_estimation" | "unavailable",
+    "billing_source": "focus_billing_charges" | "vercel_usage_cli" | null,
     "vercel_monthly": <number or null>,
     "baseline_note": "<explanation of source and confidence>"
   },
