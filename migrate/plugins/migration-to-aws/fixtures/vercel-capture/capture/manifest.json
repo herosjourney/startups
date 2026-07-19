@@ -40,10 +40,22 @@
       "note": "GET endpoint located via vercel api list"
     },
     {
-      "endpoint": "usage aggregates",
-      "file": "api/usage-acme-shop.json",
+      "endpoint": "/v1/billing/charges?teamId=team_acme01&from=2026-06-17T00:00:00.000Z&to=2026-07-17T00:00:00.000Z",
+      "file": "api/billing-charges.jsonl",
+      "status": "ok",
+      "note": "FOCUS v1.3 JSONL — 30-day window; synthetic fixture charges"
+    },
+    {
+      "endpoint": "/v1/billing/contract-commitments?teamId=team_acme01",
+      "file": "api/contract-commitments.json",
+      "status": "ok",
+      "note": "empty array — no Pro/Enterprise commitments on this fixture team"
+    },
+    {
+      "endpoint": "vercel usage --format json (row 10 fallback)",
+      "file": "api/usage-cli.json",
       "status": "skipped",
-      "note": "no usage aggregates exposed on hobby/pro plan without observability"
+      "note": "row 8 succeeded — CLI fallback not needed"
     }
   ],
   "probe": { "attempted": false, "routes": [] }

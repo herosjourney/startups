@@ -78,11 +78,15 @@ are in `aws-infra-pricing.json`. Zero MCP calls needed in the common case.
 
 Use the best available source for Vercel monthly baseline (first match wins):
 
-1. **Vercel API billing data (preferred)** — If
-   `discovery.json.usage_metrics.billing_data` is present, use actual billing
-   data as the Vercel baseline. Highest confidence.
-   - Extract the monthly total and per-feature breakdown
+1. **Vercel API / CLI billing data (preferred)** — If
+   `discovery.json.usage_metrics.billing_data` is present, use that spend as the
+   Vercel baseline. Prefer `source: "focus_billing_charges"` (FOCUS line items
+   from `/v1/billing/charges`) over `"vercel_usage_cli"` (service rollups).
+   - Extract `monthly_total` and `by_service` (and `by_project` when present)
    - Set `current_costs.source: "api_billing_data"`
+   - Set `current_costs.billing_source` to the `billing_data.source` value
+   - FOCUS → treat as high-confidence actuals; CLI rollups → note
+     `accuracy: "service_rollups"` in the estimate narrative
 
 2. **User-provided from Clarify** — If `clarify-answers.json.Q6_vercel_spend`
    is present (not skipped), parse the range answer:

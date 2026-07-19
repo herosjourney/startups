@@ -137,18 +137,18 @@ section (Requirement 9.8)"
 
 ### Q6 — Current Vercel Spend
 
-Only ask if `discovery.json.usage_metrics.billing_data` is NOT present (i.e. the
-Vercel API did not return billing information). If billing data was successfully
-retrieved from the API, skip this question — the estimate phase will use the
-API-sourced data directly.
+Only ask if `discovery.json.usage_metrics.billing_data` is NOT present (i.e.
+FOCUS `/v1/billing/charges` and `vercel usage` CLI both soft-skipped or failed —
+common with project-scoped tokens or roles without Billing access). If
+`billing_data` is present, skip this question — Estimate uses it directly.
 
 > "What's your approximate monthly Vercel spend? This helps me compare AWS
 > costs against your current bill. (Just a ballpark is fine — $0-50, $50-200,
 > $200-1000, or $1000+)"
 
 `design_consequence`: "feeds estimate phase current_costs.vercel_monthly as the
-Vercel baseline for cost comparison; when skipped, estimate derives the baseline
-from Vercel API usage metrics instead"
+Vercel baseline for cost comparison; when skipped because billing_data exists,
+estimate uses FOCUS / vercel-usage-sourced totals instead"
 
 ### Q7 — Database Size (Conditional: Postgres Peripheral Detected)
 

@@ -20,14 +20,20 @@
 ## Security Contract (applies to every step)
 
 1. **GET-only endpoint whitelist.** The Vercel REST API calls below are the ONLY
-   network calls permitted, all HTTP GET. Vercel tokens cannot be scoped
-   read-only (resource scoping only — account/team/project), so this whitelist
-   IS the read-only guarantee. Never any POST/PATCH/DELETE, never a deploy,
+   network calls permitted, all HTTP GET (plus the documented `vercel usage`
+   CLI row, which is itself a read of billing usage). Vercel tokens cannot be
+   scoped read-only (resource scoping only — account/team/project), so this
+   whitelist IS the read-only guarantee. Never any POST/PATCH/DELETE, never a
+   deploy, never `POST /v1/billing/buy` (purchase credits — paid mutation),
    never an endpoint not in the table.
 2. **Token hygiene.** The token lives ONLY in the `VERCEL_TOKEN` environment
    variable for the duration of this step. Never write it to any file (including
    the manifest), never echo it, never pass it as a literal in a logged command
    — always `-H "Authorization: Bearer $VERCEL_TOKEN"` via env interpolation.
+   Billing rows (8–10) need a team-scoped token whose team role is Owner,
+   Member, Developer, Security, Billing, or Enterprise Viewer — project-scoped
+   tokens commonly 403 here; that is a soft skip, not a halt (Clarify Q6 covers
+   the gap).
 3. **Env var VALUES never touch disk.** The env endpoint can return values.
    Request without decryption AND reduce the response to key names in the same
    pipeline (`jq`/`python3` projection) BEFORE redirecting to a file — the raw
@@ -91,7 +97,9 @@ manifest and continue — never a halt.
 | 5 | `/v9/projects/<id>/domains?teamId=<id>`                                                  | `domains-<project>.json`     | custom domains (paginated — max 100/page)                                                                                                                                                                                                                                                                 |
 | 6 | project cron configuration — OpenAPI-discovered                                          | `crons-<project>.json`       | NOT in the public REST reference; look it up via `vercel api list` and use the GET endpoint found there, else record `skipped` (the `vercel.json` cron declarations from `discover-configs.md` remain the primary source)                                                                                 |
 | 7 | storage/stores enumeration — OpenAPI-discovered                                          | `stores.json`                | store endpoints exist (documented rate limits) but their paths are NOT in the public REST reference; look up the GET endpoints via `vercel api list`, else record `skipped` and rely on env-name + dependency signals (`@vercel/kv`, `KV_REST_API_*`, etc.), which the coupling item already corroborates |
-| 8 | usage/analytics aggregates as exposed for the plan (best-effort)                         | `usage-<project>.json`       | coarse invocation/bandwidth aggregates; absent on many plans — record `skipped`, not an error                                                                                                                                                                                                             |
+| 8 | `/v1/billing/charges?teamId=<id>&from=<ISO>&to=<ISO>`                                    | `billing-charges.jsonl`      | **Preferred spend baseline.** FOCUS v1.3 JSONL (changelog 2026-02-19). `from`/`to` required ISO 8601 UTC (`to` exclusive); use a **30-day** window ending at capture time (max range is 1 year — do not pull a year by default). Prefer `curl -N --compressed` with `Accept-Encoding: gzip` (streamed body). Roles: Owner/Member/Developer/Security/Billing/Enterprise Viewer. On 403/404 record `skipped` (not an error). **Scale:** if the JSONL exceeds ~5 MiB, also write `billing-charges-summary.json` (sum `EffectiveCost` by `ServiceName` and by `Tags.ProjectId`/`Tags.ProjectName`) via an inline `python3` aggregator and keep only that summary + a short head sample of the JSONL — never paste JSONL into chat |
+| 9 | `/v1/billing/contract-commitments?teamId=<id>`                                           | `contract-commitments.json`  | Soft-enrichment only (Pro/Enterprise commitments). Empty/`[]` or 403/404 → `skipped`; never invent commitments. Do not block Estimate on this row                                                                                                                                                            |
+| 10 | `vercel usage --token "$VERCEL_TOKEN" --format json --from <YYYY-MM-DD> --to <YYYY-MM-DD>` (optional `--scope <team>`) | `usage-cli.json` | **Fallback** when row 8 is `failed`/`skipped`. Same 30-day window (CLI dates are Pacific midnight/`end-of-day` — pass calendar dates for the same window). Requires Vercel CLI + same team roles as row 8. Write JSON only (`--format json`); never the human table. If CLI missing or 403 → `skipped` |
 
 ## Step 3: Header-Probe Capture (network, Tier 2 only)
 
@@ -163,9 +171,11 @@ never invoke any non-read MCP tool from this skill.
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Token invalid/expired mid-capture           | Stop capturing; ask the founder for a fresh token (see `prescan-collect.md` Step 2); on resume re-run Step 2 rows (captures overwrite) |
 | Individual endpoint 403/404                 | Record `failed`/`skipped` with the reason; continue                                                                                    |
+| Billing rows 8–10 403 (role/scope)          | Record `skipped` with `insufficient_billing_role` or `project_scoped_token`; continue — Estimate falls through to Clarify Q6 / plan   |
 | Rate limited (429)                          | Retry once after backoff; then record `failed`; continue                                                                               |
 | Build tools unavailable                     | `build.method: "unavailable"` with reason; continue                                                                                    |
 | No filter runtime (jq/python3) for env keys | Skip env capture entirely (rule 3); record `skipped`                                                                                   |
+| `vercel usage` CLI missing                  | Skip row 10; if row 8 also skipped, usage/billing stay unavailable                                                                     |
 
 **Key principle:** partial capture degrades confidence downstream; it never
 halts Discover.
@@ -179,6 +189,7 @@ FORBIDDEN — Do NOT include ANY of:
 - Parsing captures into findings (the fragments' job, in the worker)
 - Writing `discovery.json`, `coupling-score.json`, or `preflight-findings.json`
 - Any non-GET API call, any deploy, any MCP tool that is not read-only
+- `POST /v1/billing/buy` or any credit-purchase / paid mutation
 - Env var values, token values, or probe response bodies on disk
 
 **Your ONLY job: run the shell/network capture and index it. Nothing else.**

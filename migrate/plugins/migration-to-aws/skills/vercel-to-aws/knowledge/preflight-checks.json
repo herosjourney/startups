@@ -173,7 +173,7 @@
       "adapter_generation": "independent",
       "detection": "cross-reference route cache config (from discover-configs.md) against usage API invocation counts (from discover-api.md, or log-drain data from discover-probe.md/Tier 2 if available)",
       "severity_rule": "informational, high value",
-      "rationale": "An uncached API route firing multiple times per page view is both a migration driver and a quantifiable savings line - the one place thin Vercel billing data still yields a concrete number. Any dollar figure this check produces must still be labeled 'estimated monthly' per Requirement 9.6, even though full cost estimation is deferred to v2.",
+      "rationale": "An uncached API route firing multiple times per page view is both a migration driver and a quantifiable savings line. Prefer FOCUS billing_data / vercel usage when present for the Estimate baseline; any dollar figure this check produces on its own must still be labeled 'estimated monthly' per Requirement 9.6.",
       "remediations": [
         "Add appropriate caching (revalidate, Cache-Control headers) to the flagged route(s)"
       ]

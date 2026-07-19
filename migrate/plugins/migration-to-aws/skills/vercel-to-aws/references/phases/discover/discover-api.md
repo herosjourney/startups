@@ -12,7 +12,8 @@ _contributes:
 > `capture/manifest.json`) — this fragment runs in the dispatched worker, which
 > has no network access and never sees the token. It parses everything the
 > capture exposes: projects, deployments, env var NAMES (never values), domains,
-> cron jobs, Edge Config, KV/Postgres/Blob store integrations, and coarse usage
+> cron jobs, Edge Config, KV/Postgres/Blob store integrations, FOCUS billing
+> charges / `vercel usage` CLI spend (when captured), and residual coarse usage
 > metrics. Process only manifest entries with `status: "ok"`; carry every
 > `failed`/`skipped` entry into the corresponding section as
 > `"unavailable: <note>"`.
@@ -74,14 +75,66 @@ Engine's separability check directly.
 
 ---
 
-## Step 6: Coarse Usage Metrics
+## Step 6: Billing + Usage Metrics (spend baseline for Estimate)
 
-From `capture/api/usage-<project>.json` when present (many plans expose none —
-the manifest will say `skipped`; record the section as unavailable). Parse
-whatever aggregates were captured (invocation counts, bandwidth) at whatever
-granularity is available. Per Requirement 4.4, a finding resting SOLELY
-on this coarse usage data (with no log-drain backing) is LOW confidence — record
-it as such, with `upgrade_input: "7-14 day log drain/observability export"`.
+Build `usage_metrics` from the best available spend capture (first match wins),
+then attach any residual coarse aggregates.
+
+### 6a. FOCUS billing charges (preferred)
+
+When the manifest marks `billing-charges.jsonl` (or
+`billing-charges-summary.json`) as `ok`:
+
+1. Read FOCUS v1.3 charge lines (JSONL) or the pre-aggregated summary.
+2. Prefer `EffectiveCost` for totals (fall back to `BilledCost` when
+   `EffectiveCost` is absent). Currency is USD per the API.
+3. If multiple projects are in `tier1-signals.json.project_list`, filter charge
+   rows whose `Tags.ProjectId` / `Tags.ProjectName` match an in-scope project
+   when those Tags are present; if Tags are missing on a row, keep it in the
+   **team** total and note `project_filter: "partial_tags"`.
+4. Emit `usage_metrics.billing_data`:
+
+```json
+{
+  "source": "focus_billing_charges",
+  "window_days": 30,
+  "currency": "USD",
+  "monthly_total": 123.45,
+  "by_service": { "Fluid Compute": 80.0, "Fast Data Transfer": 20.0 },
+  "by_project": { "prj_acmeshop01": 100.0 },
+  "charge_count": 42,
+  "contract_commitments_present": false
+}
+```
+
+Normalize the 30-day window total to a monthly figure as
+`monthly_total = sum(EffectiveCost) * (30.437 / window_days)` when the captured
+window is not ~30 days; for the default 30-day capture, use the sum directly.
+Set `usage_metrics.confidence` to `HIGH` when `billing_data` is present from
+FOCUS (line-item triangulation). Soft-read
+`contract-commitments.json` when `ok` — set
+`contract_commitments_present: true` only if the file contains at least one
+commitment; never invent amounts from commitments alone.
+
+### 6b. `vercel usage` CLI fallback
+
+When 6a is unavailable and `usage-cli.json` is `ok`, parse
+`totals` / `services[]` (`Effective Cost` / `Billed Cost` fields as emitted by
+`--format json`). Emit the same `billing_data` shape with
+`"source": "vercel_usage_cli"` and `confidence: "MEDIUM"` (service rollups, not
+FOCUS line items).
+
+### 6c. Coarse residuals (never a spend baseline alone)
+
+Legacy / optional `usage-<project>.json` aggregates (invocation counts,
+bandwidth) may still appear; parse them into `usage_metrics.invocation_counts`
+etc. Per Requirement 4.4, a finding resting SOLELY on this coarse usage data
+(with no log-drain and no `billing_data`) is LOW confidence — record it as
+such, with `upgrade_input: "7-14 day log drain/observability export"`. Coarse
+residuals must **not** fabricate `billing_data`.
+
+When no billing capture succeeded, omit `billing_data` entirely (Clarify Q6
+asks for spend; Estimate falls through). Do not invent zeros.
 
 ---
 
@@ -97,17 +150,31 @@ it as such, with `upgrade_input: "7-14 day log drain/observability export"`.
   "peripherals": [{ "type": "...", "source": "vercel_api" }, ...],
   "api_routes": ["<route>", ...],
   "backend_service_detected": false,
-  "usage_metrics": { "confidence": "LOW", "invocation_counts": {...} }
+  "usage_metrics": {
+    "confidence": "HIGH" | "MEDIUM" | "LOW",
+    "billing_data": {
+      "source": "focus_billing_charges" | "vercel_usage_cli",
+      "window_days": 30,
+      "currency": "USD",
+      "monthly_total": 0,
+      "by_service": {},
+      "by_project": {},
+      "charge_count": 0
+    },
+    "invocation_counts": {}
+  }
 }
 ```
 
 Findings sourced purely from the Vercel API (no log drain) carry
-`computed_from_inputs: ["vercel_api_token"]`. Usage-metric findings additionally
-list `"log_drain_export"` in `computed_from_inputs` even though log drain data
-was NOT used this run — this is intentional: it means a future re-invocation with
-a log drain export newly present will correctly trigger recomputation of this
-specific finding (per the recompute short-circuit mechanism in
-`discover-coupling.md`/`discover-preflight.md`, and analogously here).
+`computed_from_inputs: ["vercel_api_token"]`. Usage-metric findings that lack
+`billing_data` additionally list `"log_drain_export"` in `computed_from_inputs`
+even though log drain data was NOT used this run — this is intentional: it means
+a future re-invocation with a log drain export newly present will correctly
+trigger recomputation of this specific finding (per the recompute short-circuit
+mechanism in `discover-coupling.md`/`discover-preflight.md`, and analogously
+here). When `billing_data.source` is `focus_billing_charges`, also list
+`"vercel_billing_charges"` in `computed_from_inputs`.
 
 ---
 

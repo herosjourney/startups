@@ -121,7 +121,7 @@
             "MEDIUM",
             "HIGH"
           ],
-          "description": "Per Requirement 4.4: LOW when resting solely on header probes or coarse usage aggregates; HIGH is only eligible when backed by log-drain or invoice data."
+          "description": "Per Requirement 4.4: LOW when resting solely on header probes or coarse usage aggregates; HIGH is eligible when backed by log-drain, FOCUS /v1/billing/charges (billing_data), or founder invoice data."
         },
         "upgrade_input": {
           "type": [

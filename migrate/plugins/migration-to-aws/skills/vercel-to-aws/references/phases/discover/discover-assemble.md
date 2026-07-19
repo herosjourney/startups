@@ -57,8 +57,8 @@ For every finding contributed by any fragment, assign a `confidence` of `LOW`,
   Requirement 4.1 — MEDIUM even though the manifest itself is unambiguous), or
   anything SIMULATED/sourced from an API call rather than a direct file read.
 - **LOW** applies when a finding rests SOLELY on header probes
-  (`discover-probe.md`) or coarse usage aggregates
-  (`discover-api.md`'s `usage_metrics` without a log drain).
+  (`discover-probe.md`) or coarse usage aggregates without
+  `billing_data` / log drain (`discover-api.md` Step 6).
 - **MEDIUM** applies to everything else (source-config/manifest-fallback-derived
   findings without log-drain/invoice corroboration).
 
