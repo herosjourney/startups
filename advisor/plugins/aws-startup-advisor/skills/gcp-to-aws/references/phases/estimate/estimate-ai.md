@@ -32,7 +32,7 @@ Read from `$MIGRATION_DIR/`:
 - **`preferences.json`** — `ai_constraints.ai_token_volume.value`, `ai_constraints.ai_capabilities_required.value`
 - **`aws-design-ai.json`** — `metadata.ai_source`, `ai_architecture.honest_assessment`, `ai_architecture.tiered_strategy`, `ai_architecture.bedrock_models[]` (with `source_provider_price`, `bedrock_price`, `honest_assessment`), `ai_architecture.capability_mapping`
 
-**Traditional-AI workloads (not yet costed by this phase):** `design_blocks[]` entries with `target_aws_service` set (capability `document_extraction`, `image_analysis`, or `speech_transcription` — Textract, Rekognition, Transcribe) are per-page/per-image/per-minute priced, not token priced, and this phase's cost model does not cover them yet. Skip these blocks in Parts 1–2 below; list them in the output under a `services_not_estimated[]` array (`{workload_id, target_aws_service, reason: "not_token_priced"}`) so the user knows they're excluded rather than assumed free.
+**Traditional-AI workloads (`design_blocks[]` entries with `target_aws_service` set):** capability `document_extraction`, `image_analysis`, or `speech_transcription` (→ Textract, Rekognition, Transcribe) are priced per-page/per-image/per-minute, not per-token. Skip these blocks in Parts 1–3 below (which are token-cost logic only) — cost them separately in **Part 3.5**.
 
 ---
 
@@ -86,6 +86,59 @@ Using the model selected in the design phase, show:
 - Total monthly cost
 - Comparison to current GCP spend (monthly and annual difference)
 - Backup model cost for comparison
+
+---
+
+## Part 3.5: Traditional AI Services (Textract, Rekognition, Transcribe)
+
+For every `design_blocks[]` entry with `target_aws_service` set (see Prerequisites above), compute cost using per-unit pricing from `references/shared/pricing-cache.md` → "Traditional AI Services (Non-Bedrock, Non-Token Pricing)". These are NOT token-priced — do not apply Part 2's cost formula to them.
+
+### Step 1: Establish monthly volume (pages / images / minutes)
+
+Volume is not captured by any existing Clarify question (`ai_token_volume` measures LLM tokens, not pages/images/minutes) — derive it in this order:
+
+1. **GCP billing data (preferred)** — If `ai-workload-profile.json` → `current_costs.services_detected` includes "Document AI", "Vision AI", or "Speech-to-Text" (from `discover-billing.md` Pattern 3.4) and a per-service dollar amount is available, back into a volume estimate by dividing the GCP monthly spend for that service by the corresponding GCP per-unit rate in `pricing-cache.md`'s GCP comparison tables. Example: $45/month on GCP Vision Label Detection ÷ $1.50/1,000 units ≈ 30,000 images/month (ignoring the first-1,000-free tier, which is immaterial at this volume). State the assumption: "Volume estimated from GCP billing; actual AWS volume may differ if usage patterns change post-migration."
+2. **App-code call-site count (fallback)** — If `workloads[].call_sites` shows the number of distinct call locations but no volume data exists, do NOT fabricate a number. Set `volume_confidence: "unknown"` and present cost at 3 illustrative volume tiers instead of a single figure (same multi-tier approach as Part 1's "None available" case): 10K/mo, 100K/mo, 1M/mo units.
+3. **User-supplied (if asked)** — Do not add a new Clarify question for this. If the user volunteers a volume figure in conversation during Estimate, use it and set `chosen_by: "user"`.
+
+### Step 2: Apply the matching rate table
+
+| `target_aws_service` | Rate table to use                                                            | Unit   |
+| -------------------- | ---------------------------------------------------------------------------- | ------ |
+| `textract`           | `pricing-cache.md` → "AWS Textract (per 1,000 pages, tiered)"                | page   |
+| `rekognition`        | `pricing-cache.md` → "AWS Rekognition Image (per 1,000 images, tiered)"      | image  |
+| `transcribe`         | `pricing-cache.md` → "AWS Transcribe (per minute, tiered by monthly volume)" | minute |
+
+**Textract API selection:** Use the specific `target_aws_service` sub-variant recorded by Design (`references/design-refs/ai.md` maps GCP processor type → specific Textract API — e.g., `AnalyzeExpense` for invoices, `DetectDocumentText` for plain OCR). If Design only recorded `"textract"` without an API sub-type, default to `AnalyzeDocument` — Forms + Tables (the most capable, and most expensive, tier) and flag: "Textract API variant not specified — costed at the Forms+Tables rate; confirm the actual processor type to refine this estimate, since per-page cost varies up to 47x by API."
+
+**Apply the tier breakpoints** — e.g., for Textract `DetectDocumentText` at 1.5M pages/month: `(1,000,000 × $0.0015) + (500,000 × $0.0006) = $1,500 + $300 = $1,800/month`.
+
+### Step 3: Compare against current GCP cost
+
+Use the matching GCP rate table in `pricing-cache.md` (same section) to compute the current GCP cost at the same volume, using the GCP service actually detected (Document AI processor type / Vision API feature / Speech-to-Text tier). If GCP billing data gave the volume in Step 1, this is the customer's actual current spend — use it directly instead of recomputing, and note any variance if the recomputed figure differs meaningfully (>15%) from billed spend, since that signals the derived volume estimate may be off.
+
+### Step 4: Emit output
+
+Add a `traditional_ai_costs[]` array (see Output schema below) — one entry per `design_blocks[]` traditional-AI workload:
+
+```json
+{
+  "workload_id": "wl_8b4e91",
+  "target_aws_service": "textract",
+  "api_variant": "AnalyzeExpense",
+  "monthly_volume": 100000,
+  "volume_unit": "pages",
+  "volume_confidence": "estimated_from_billing",
+  "aws_monthly_cost": 1000.00,
+  "gcp_monthly_cost": 833.33,
+  "cost_comparison_pct": "+20%",
+  "note": "AWS is more expensive at this volume for AnalyzeExpense vs GCP Expense parser flat rate; AWS's tiered discount only helps above 1M pages/month."
+}
+```
+
+**If no volume could be established at all** (no billing, no user input, call-site count only): set `volume_confidence: "unknown"`, omit `aws_monthly_cost`/`gcp_monthly_cost`/`cost_comparison_pct` (do not fabricate a number), and instead populate a `cost_at_illustrative_volumes[]` sub-array with the 3 tiers from Step 1.2.
+
+**These entries do NOT feed into `cost_comparison`, `roi_analysis`, or `recommendation` (Parts 5–7)** — those remain LLM-token-cost-only, matching the Scope Boundary at the bottom of this file. Traditional-AI cost is presented as a separate line item in the summary (see Present Summary, below), not blended into the primary migrate/stay verdict, since the two are priced on fundamentally different bases and a customer with one cheap Bedrock model and one expensive Textract migration should see both facts distinctly rather than a single averaged number.
 
 ---
 
@@ -184,24 +237,25 @@ Write `estimation-ai.json` to `$MIGRATION_DIR/`.
 
 **Schema — top-level fields:**
 
-| Field                           | Type   | Description                                                                                                                     |
-| ------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `phase`                         | string | `"estimate"`                                                                                                                    |
-| `timestamp`                     | string | ISO 8601                                                                                                                        |
-| `pricing_source`                | string | `"cached"` or `"live"`                                                                                                          |
-| `accuracy_confidence`           | string | `"±5-10%"` or `"±15-25%"`                                                                                                       |
-| `current_costs`                 | object | `source`, `gcp_monthly_ai_spend`, `services[]`                                                                                  |
-| `token_volume`                  | object | `source`, `monthly_input_tokens`, `monthly_output_tokens`, ratio                                                                |
-| `model_comparison`              | array  | All viable models: `model`, `monthly_cost`, `vs_current`, `quality`, `capabilities_match`, `missing_capabilities[]`             |
-| `recommended_model`             | object | `model`, `monthly_cost`, `breakdown` (input/output/embeddings), `rationale`                                                     |
-| `backup_model`                  | object | `model`, `monthly_cost`, `rationale`                                                                                            |
-| `embeddings`                    | object | `model`, `monthly_cost`, `monthly_tokens`, `note` (if applicable)                                                               |
-| `cost_comparison`               | object | `current_gcp_monthly`, `projected_bedrock_monthly`, `monthly_difference`, `annual_difference`, `percent_change`                 |
-| `migration_cost_considerations` | object | `categories[]` (always `[]`), `complexity_factors[]` (technical integration only), `note` (must state human/pro costs excluded) |
-| `roi_analysis`                  | object | `monthly_cost_delta`, `annual_cost_delta`, `justification`, `non_cost_benefits[]`                                               |
-| `optimization_opportunities`    | array  | `opportunity`, `potential_savings_monthly`, `implementation_effort`, `description`                                              |
-| `optimized_projection`          | object | `monthly_with_optimizations`, `vs_current`, `note`                                                                              |
-| `recommendation`                | object | `path`, `path_label`, `migrate_if`, `stay_if`, `confidence`, `rationale` (see Part 7)                                           |
+| Field                           | Type   | Description                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `phase`                         | string | `"estimate"`                                                                                                                                                                                                                                                                                                                           |
+| `timestamp`                     | string | ISO 8601                                                                                                                                                                                                                                                                                                                               |
+| `pricing_source`                | string | `"cached"` or `"live"`                                                                                                                                                                                                                                                                                                                 |
+| `accuracy_confidence`           | string | `"±5-10%"` or `"±15-25%"`                                                                                                                                                                                                                                                                                                              |
+| `current_costs`                 | object | `source`, `gcp_monthly_ai_spend`, `services[]`                                                                                                                                                                                                                                                                                         |
+| `token_volume`                  | object | `source`, `monthly_input_tokens`, `monthly_output_tokens`, ratio                                                                                                                                                                                                                                                                       |
+| `model_comparison`              | array  | All viable models: `model`, `monthly_cost`, `vs_current`, `quality`, `capabilities_match`, `missing_capabilities[]`                                                                                                                                                                                                                    |
+| `recommended_model`             | object | `model`, `monthly_cost`, `breakdown` (input/output/embeddings), `rationale`                                                                                                                                                                                                                                                            |
+| `backup_model`                  | object | `model`, `monthly_cost`, `rationale`                                                                                                                                                                                                                                                                                                   |
+| `embeddings`                    | object | `model`, `monthly_cost`, `monthly_tokens`, `note` (if applicable)                                                                                                                                                                                                                                                                      |
+| `cost_comparison`               | object | `current_gcp_monthly`, `projected_bedrock_monthly`, `monthly_difference`, `annual_difference`, `percent_change`                                                                                                                                                                                                                        |
+| `migration_cost_considerations` | object | `categories[]` (always `[]`), `complexity_factors[]` (technical integration only), `note` (must state human/pro costs excluded)                                                                                                                                                                                                        |
+| `roi_analysis`                  | object | `monthly_cost_delta`, `annual_cost_delta`, `justification`, `non_cost_benefits[]`                                                                                                                                                                                                                                                      |
+| `optimization_opportunities`    | array  | `opportunity`, `potential_savings_monthly`, `implementation_effort`, `description`                                                                                                                                                                                                                                                     |
+| `optimized_projection`          | object | `monthly_with_optimizations`, `vs_current`, `note`                                                                                                                                                                                                                                                                                     |
+| `recommendation`                | object | `path`, `path_label`, `migrate_if`, `stay_if`, `confidence`, `rationale` (see Part 7)                                                                                                                                                                                                                                                  |
+| `traditional_ai_costs`          | array  | Present only if any `design_blocks[]` entry has `target_aws_service` set. Per-workload: `workload_id`, `target_aws_service`, `api_variant`, `monthly_volume`, `volume_unit`, `volume_confidence`, `aws_monthly_cost`, `gcp_monthly_cost`, `cost_comparison_pct`, `note` (see Part 3.5). `[]` or absent if no traditional-AI workloads. |
 
 All cost values are numbers, not strings. Output must be valid JSON.
 
@@ -219,6 +273,9 @@ All cost values are numbers, not strings. Output must be valid JSON.
 - [ ] `optimization_opportunities` only includes strategies relevant to user's workload
 - [ ] No compute, database, storage, or networking costs (those belong in `estimate-infra.md`)
 - [ ] `migration_cost_considerations.categories` is `[]` — no human one-time migration costs presented
+- [ ] Every `design_blocks[]` entry with `target_aws_service` set has a corresponding `traditional_ai_costs[]` entry (or is covered by `cost_at_illustrative_volumes[]` if volume is unknown) — none silently dropped
+- [ ] `traditional_ai_costs[]` entries do NOT factor into `cost_comparison`, `roi_analysis`, or `recommendation` — those remain LLM-token-only per the Scope Boundary
+- [ ] If `volume_confidence` is `"unknown"` for a traditional-AI workload, `aws_monthly_cost`/`gcp_monthly_cost` are omitted (not fabricated) and `cost_at_illustrative_volumes[]` is populated instead
 
 ## Completion Handoff Gate (Fail Closed)
 
@@ -239,6 +296,7 @@ After writing `estimation-ai.json`, present under 25 lines:
 5. If migration increases cost: flag honestly with non-cost justification
 6. Top 2-3 optimization opportunities with potential estimated monthly savings
 7. Optimized projection
+8. **If `traditional_ai_costs[]` is non-empty:** present as a separate line item, not blended into the LLM cost comparison above — e.g., "Document extraction (Textract, AnalyzeExpense): Est. $1,000/mo at ~100K pages/mo (vs Est. $833/mo on GCP Expense parser, +20%)." If `volume_confidence` is `"unknown"` for any entry, say so explicitly and present the illustrative-volume range instead of a single figure.
 
 **Cost labeling rule:** All dollar figures presented to the user MUST be labeled as "estimated monthly costs" or prefixed with "Est." — never present raw dollar amounts as if they are exact.
 
