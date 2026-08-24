@@ -758,6 +758,72 @@ _On-demand inference for **custom Nova** models matches **base Nova** inference 
 
 ---
 
+## Traditional AI Services (Non-Bedrock, Non-Token Pricing)
+
+For `design_blocks[]` entries with `target_aws_service` set (`document_extraction` → Textract, `image_analysis` → Rekognition, `speech_transcription` → Transcribe). These are priced per-page, per-image, or per-minute — NOT per-token — so they use a different cost formula than the Bedrock Models section above. Source: [aws.amazon.com/textract/pricing](https://aws.amazon.com/textract/pricing/), [aws.amazon.com/rekognition/pricing](https://aws.amazon.com/rekognition/pricing/), [aws.amazon.com/transcribe/pricing](https://aws.amazon.com/transcribe/pricing/), verified 2026-08-24, US East (N. Virginia) / US West (Oregon) — Textract's published examples use Oregon; rates are identical across most US regions but always confirm via MCP for a region outside the US.
+
+### AWS Textract (per 1,000 pages, tiered)
+
+| API                                  | First 1M pages/mo   | After 1M pages/mo   | Matches GCP Document AI                                                           |
+| ------------------------------------ | ------------------- | ------------------- | --------------------------------------------------------------------------------- |
+| `DetectDocumentText` (plain OCR)     | $1.50               | $0.60               | Enterprise Document OCR Processor                                                 |
+| `AnalyzeDocument` — Tables only      | $15.00              | $10.00              | Form Parser (partial — GCP doesn't split tables from forms)                       |
+| `AnalyzeDocument` — Forms only       | $50.00              | $40.00              | Form Parser                                                                       |
+| `AnalyzeDocument` — Forms + Tables   | $70.00              | $55.00              | Form Parser                                                                       |
+| `AnalyzeDocument` — Signatures       | $3.50               | $1.40               | (no direct GCP equivalent)                                                        |
+| `AnalyzeExpense` (invoices/receipts) | $10.00              | $8.00               | Invoice parser / Expense parser (GCP: $100/1,000, flat — no tier)                 |
+| `AnalyzeID` (identity documents)     | $25.00 (first 100K) | $10.00 (after 100K) | US driver license / passport / identity document proofing (GCP: $100/1,000, flat) |
+
+**Tiering differs from GCP:** AWS tiers are volume-based (first 1M pages, then a lower rate). GCP Document AI's pretrained parsers (invoice, expense, ID) are flat-rate — no volume discount, and priced per 10-page "count" unit rather than per page. Do not assume linear scaling when comparing at different volumes; recompute both sides at the customer's actual monthly page count.
+
+**Confidence:** `high` for `DetectDocumentText`↔OCR Processor and `AnalyzeExpense`↔Expense parser (near-identical scope). `medium` for `AnalyzeDocument`↔Form Parser (AWS separates Tables/Forms into billable sub-features; GCP's Form Parser is one flat rate covering both) and `AnalyzeID`↔identity parsers (AWS bundles "identity document" as one API; GCP has separate driver-license/passport/proofing parsers priced identically, so the comparison holds at the aggregate level only).
+
+### AWS Rekognition Image (per 1,000 images, tiered)
+
+| API Group                                                                                               | First 1M images/mo                           | Next ~4M/mo | Matches GCP Vision API                                              |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------- | ------------------------------------------------------------------- |
+| Group 2 (`DetectLabels`, `DetectText`, `DetectFaces`, `DetectModerationLabels`, `RecognizeCelebrities`) | $1.00                                        | $0.80       | Label/Text/Facial Detection                                         |
+| Group 1 (`CompareFaces`, `IndexFaces`, `SearchFaces*`, `SearchUsers*`)                                  | $1.00                                        | $0.80       | (no direct GCP Vision equivalent — face-search collection features) |
+| Image Properties                                                                                        | $0.75                                        | $0.60       | Image Properties                                                    |
+| Face metadata storage                                                                                   | $0.01 per 1,000 face/user vectors, per month | —           | (no GCP Vision equivalent)                                          |
+
+**Matches GCP Vision API** (per 1,000 units, tiered, US-only pricing shown — GCP has no regional pricing tiers):
+
+| GCP Feature             | Units 1–1,000/mo | Units 1,001–5,000,000/mo | Units 5,000,001+/mo |
+| ----------------------- | ---------------- | ------------------------ | ------------------- |
+| Label Detection         | Free             | $1.50                    | $1.00               |
+| Text Detection          | Free             | $1.50                    | $0.60               |
+| Document Text Detection | Free             | $1.50                    | $0.60               |
+| Facial Detection        | Free             | $1.50                    | $0.60               |
+| Image Properties        | Free             | $1.50                    | $0.60               |
+
+**Confidence:** `high` for Label/Text detection (near-identical scope and unit definition — "1 image analyzed with 1 feature" on both sides). `low` for face-related APIs — AWS splits DetectFaces (Group 2, per-image) from the face-collection features IndexFaces/SearchFaces (Group 1, also per-image but for a different workflow: building a searchable face database vs. one-shot detection); GCP's Facial Detection is a single per-image feature with no collection/search analog. Flag face-collection workloads for manual review rather than a direct price comparison.
+
+### AWS Transcribe (per minute, tiered by monthly volume)
+
+| Mode                                    | Rate (US East N. Virginia)                                                                                 | Matches GCP Speech-to-Text                                                            |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Standard Batch                          | $0.006/min (flat, per AWS's own published worked example — no published lower volume tier below this rate) | Speech-to-Text V2 Standard (batch)                                                    |
+| Standard Streaming                      | $0.01/min (flat)                                                                                           | Speech-to-Text V2 Standard (streaming)                                                |
+| Call Analytics (post-call or real-time) | $0.03/min (T1, first 250K min/mo), $0.0186/min (T2, next 750K), $0.0138/min (T3, next 4M)                  | (no direct GCP equivalent — closest is Speech-to-Text + separate sentiment/NLP calls) |
+
+**Contact-sales caveat:** AWS's public pricing page notes "for larger workloads, additional volume discounts may be available — contact AWS pricing specialists" for Standard Batch/Streaming. The flat rates above are the only published self-service tiers; do not assume a further discount exists below whatever a customer's account team quotes.
+
+**Matches GCP Speech-to-Text V2** (per minute, tiered by monthly volume — note GCP tiers descend with volume, opposite direction from framing AWS tiers as "first N then lower"):
+
+| Volume tier                | Rate/min |
+| -------------------------- | -------- |
+| 0–500,000 min/mo           | $0.016   |
+| 500,000–1,000,000 min/mo   | $0.010   |
+| 1,000,000–2,000,000 min/mo | $0.008   |
+| 2,000,000+ min/mo          | $0.004   |
+
+**Confidence:** `high` for Standard Batch/Streaming↔Speech-to-Text V2 Standard (same scope: audio in, transcript out, no diarization/sentiment). `low` for Call Analytics — bundles PII redaction, call characteristics, and (optionally) generative summarization at extra cost; GCP has no single bundled equivalent, so cost comparison requires itemizing which GCP calls (Speech-to-Text + Cloud Natural Language) the customer is actually combining today.
+
+**GCP volume-discount direction differs from AWS Textract/Rekognition:** Speech-to-Text's tiers get cheaper as volume increases (like AWS Transcribe), but the break points are much higher (500K min minimum for the first discount) — a customer under 500K minutes/month sees no GCP volume discount at all, while AWS Transcribe's batch tier discount structure kicks in at lower volumes. Always compute both sides at the customer's actual volume; do not assume a flat "AWS cheaper" or "GCP cheaper" rule of thumb.
+
+---
+
 ## Source Provider Pricing (for Migration Comparison)
 
 Use alongside Bedrock pricing to calculate migration ROI.
