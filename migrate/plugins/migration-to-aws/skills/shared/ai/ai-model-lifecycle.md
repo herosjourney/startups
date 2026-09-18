@@ -6,11 +6,25 @@
 > `references/vendored/ai/ai-model-lifecycle.md` and kept byte-identical by
 > `shared:check`; edit HERE, then run `shared:sync`.
 
-Reference: [Amazon Bedrock Model Lifecycle](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html)
+References:
 
-Models on Bedrock move through three states: **Active** → **Legacy** (minimum 6 months before EOL) → **End-of-Life (EOL)**. After EOL, the model is unavailable and requests fail.
+- [Models launched on or after 2026-09-07](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html)
+- [Models launched before 2026-09-07](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html)
 
-For models with EOL dates after February 1, 2026, a **public extended access** period begins at least 3 months into the Legacy state. During this period pricing may increase at the model provider's discretion.
+Models on Bedrock move through three states: **Active** → **Legacy** →
+**End-of-Life (EOL)**. After EOL, the model is unavailable and requests fail.
+
+The notice policy depends on launch date:
+
+- Models launched **before 2026-09-07** follow the original policy: at least six
+  months in Legacy before EOL. For EOL dates after 2026-02-01, public extended
+  access starts after at least three months in Legacy and provider pricing may
+  increase.
+- Models launched **on or after 2026-09-07** use their model card: each card
+  declares an `EOL no sooner than` date and either a six-month or **45-day**
+  Legacy period. When Legacy begins, the card gains the actual EOL date.
+
+Do not apply the old six-month assumption to a post-2026-09-07 model.
 
 ---
 
@@ -54,40 +68,52 @@ On each run, compute `days_to_eol = EOL date − today` for every model in the L
 
 ---
 
-## Legacy / EOL Models (as of August 24, 2026)
+## Legacy / EOL Models (as of 2026-09-17)
 
-Check the [model lifecycle page](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html) for the authoritative list. The table below captures models referenced elsewhere in this plugin. **Recompute the Status column on each run** using `days_to_eol = EOL date − today`.
+For models launched before 2026-09-07, check the
+[legacy lifecycle table](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html).
+For newer models, check the model card and runtime `modelLifecycle.status`. The
+table below captures pre-policy-change models referenced elsewhere in this
+plugin. Recompute `days_to_eol = EOL date − today` on every run.
 
-| Model              | Model ID                                  | EOL Date     | Days to EOL | Status       | Active Replacement      |
-| ------------------ | ----------------------------------------- | ------------ | ----------- | ------------ | ----------------------- |
-| Claude 3 Haiku     | `anthropic.claude-3-haiku-20240307-v1:0`  | Sep 10, 2026 | 17          | **excluded** | Claude Haiku 4.5        |
-| Nova Premier v1    | `amazon.nova-premier-v1:0`                | Sep 14, 2026 | 21          | **excluded** | Nova 2 Pro (Preview)    |
-| Nova Sonic v1      | `amazon.nova-sonic-v1:0`                  | Sep 14, 2026 | 21          | **excluded** | Nova 2 Sonic            |
-| Nova Canvas v1     | `amazon.nova-canvas-v1:0`                 | Sep 30, 2026 | 37          | **excluded** | Stability AI (see note) |
-| Nova Reel v1       | `amazon.nova-reel-v1:0` / `v1:1`          | Sep 30, 2026 | 37          | **excluded** | —                       |
-| Claude Sonnet 4    | `anthropic.claude-sonnet-4-20250514-v1:0` | Oct 14, 2026 | 51          | **excluded** | Claude Sonnet 5 / 4.6   |
-| Jamba 1.5 Large    | `ai21.jamba-1-5-large-v1:0`               | Nov 26, 2026 | 94          | legacy       | —                       |
-| Jamba 1.5 Mini     | `ai21.jamba-1-5-mini-v1:0`                | Nov 26, 2026 | 94          | legacy       | —                       |
-| Marengo Embed v2.7 | `twelvelabs.marengo-embed-2-7-v1:0`       | Nov 30, 2026 | 98          | legacy       | Marengo Embed 3.0       |
-| Claude Opus 4.1    | `anthropic.claude-opus-4-1-20250805-v1:0` | Jan 8, 2027  | 137         | legacy       | Claude Opus 4.8 / 4.6   |
+| Model              | Model ID                                  | EOL Date   | Days to EOL | Status       | Active Replacement      |
+| ------------------ | ----------------------------------------- | ---------- | ----------- | ------------ | ----------------------- |
+| Nova Canvas v1     | `amazon.nova-canvas-v1:0`                 | 2026-09-30 | 13          | **excluded** | Stability AI (see note) |
+| Nova Reel v1       | `amazon.nova-reel-v1:0` / `v1:1`          | 2026-09-30 | 13          | **excluded** | —                       |
+| Claude Sonnet 4    | `anthropic.claude-sonnet-4-20250514-v1:0` | 2026-10-14 | 27          | **excluded** | Claude Sonnet 5 / 4.6   |
+| Jamba 1.5 Large    | `ai21.jamba-1-5-large-v1:0`               | 2026-11-26 | 70          | **excluded** | —                       |
+| Jamba 1.5 Mini     | `ai21.jamba-1-5-mini-v1:0`                | 2026-11-26 | 70          | **excluded** | —                       |
+| Marengo Embed v2.7 | `twelvelabs.marengo-embed-2-7-v1:0`       | 2026-11-30 | 74          | **excluded** | Marengo Embed 3.0       |
+| Claude Opus 4.1    | `anthropic.claude-opus-4-1-20250805-v1:0` | 2027-01-08 | 113         | legacy       | Claude Opus 4.8 / 4.6   |
 
-**Notes (as of Aug 24, 2026):** Jamba 1.5 Large / Mini enter public extended access on **Aug 26, 2026** (provider pricing may increase) and the 90-day exclusion zone on **Aug 28, 2026**. Marengo Embed v2.7 is listed on the official lifecycle page; the Active replacement is Marengo Embed 3.0.
+Jamba 1.5 Large / Mini and Marengo Embed v2.7 are in public extended
+access; provider pricing may increase. They are now inside the 90-day
+exclusion zone and must not appear in new-migration recommendation or
+comparison tables.
 
-**Removed (past EOL as of Aug 24, 2026):**
+**Removed (past EOL as of 2026-09-17):**
 
-- Titan Image Generator v2 (`amazon.titan-image-generator-v2:0`) — EOL Jun 30, 2026
-- Llama 3.2 all sizes (`meta.llama3-2-*-instruct-v1:0`) — EOL Jul 7, 2026
-- Llama 3.1 405B Instruct (`meta.llama3-1-405b-instruct-v1:0`) — EOL Jul 7, 2026
-- Claude 3 Sonnet (`anthropic.claude-3-sonnet-20240229-v1:0`) — EOL Jul 30, 2026
-- Claude 3.5 Sonnet v1 (`anthropic.claude-3-5-sonnet-20240620-v1:0`) — EOL Jul 30, 2026
-- Claude 3.5 Sonnet v2 (`anthropic.claude-3-5-sonnet-20241022-v2:0`) — EOL Jul 30, 2026
-- Command R / R+ (`cohere.command-r-v1:0` / `cohere.command-r-plus-v1:0`) — EOL Aug 19, 2026
+- Titan Image Generator v2 (`amazon.titan-image-generator-v2:0`) — EOL 2026-06-30
+- Llama 3.2 all sizes (`meta.llama3-2-*-instruct-v1:0`) — EOL 2026-07-07
+- Llama 3.1 405B Instruct (`meta.llama3-1-405b-instruct-v1:0`) — EOL 2026-07-07
+- Claude 3 Sonnet (`anthropic.claude-3-sonnet-20240229-v1:0`) — EOL 2026-07-30
+- Claude 3.5 Sonnet v1 (`anthropic.claude-3-5-sonnet-20240620-v1:0`) — EOL 2026-07-30
+- Claude 3.5 Sonnet v2 (`anthropic.claude-3-5-sonnet-20241022-v2:0`) — EOL 2026-07-30
+- Command R / R+ (`cohere.command-r-v1:0` / `cohere.command-r-plus-v1:0`) — EOL 2026-08-19
+- Claude 3 Haiku (`anthropic.claude-3-haiku-20240307-v1:0`) — EOL 2026-09-10
+- Nova Premier v1 (`amazon.nova-premier-v1:0`) — EOL 2026-09-14
+- Nova Sonic v1 (`amazon.nova-sonic-v1:0`) — EOL 2026-09-14
 
-> **AWS page lag:** As of Aug 24, 2026, the [Bedrock model lifecycle page](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html) still lists Command R / R+ in its Legacy/pending-EOL table (Legacy Feb 19, 2026; EOL Aug 19, 2026), even though that EOL date has passed and the same page says past-EOL rows are dropped. This file treats the **EOL date as authoritative** and keeps them here in Removed — not in the live table — so existing Command R users still see a warning. Do not recommend Command R / R+ for new migrations.
+> **AWS page lag:** As of 2026-09-17, the legacy lifecycle page still lists
+> some rows whose published EOL date has passed. Treat the EOL date as
+> authoritative. Keep those models only in this Removed list and catalog
+> warnings; never recommend or invoke them.
 
 **Status key:** `excluded` = ≤90 days to EOL, must not appear in any recommendation. `legacy` = >90 days to EOL, annotate but do not recommend as primary.
 
-**⚠️ Image generation — Active successor is Stability AI:** Nova Canvas v1 is Legacy (EOL Sep 30, 2026). The Active image generation models on Bedrock are **Stability AI** models:
+**⚠️ Image generation — Active successor is Stability AI:** Nova Canvas v1 is
+Legacy and excluded from recommendations (EOL 2026-09-30). The Active image
+generation models on Bedrock are **Stability AI** models:
 
 | Model                      | Model ID                            | Pricing       | Tier     | Use case                              |
 | -------------------------- | ----------------------------------- | ------------- | -------- | ------------------------------------- |
@@ -145,8 +171,23 @@ When refreshing the cache, recompute `days_to_eol` and update the Status column 
 
 ## Refresh Cadence
 
-**On every design run:** The agent MUST recompute `days_to_eol = EOL date − today` for every row in the table above and apply the four rules in "Applying the rules" before making any model recommendation. The static Days to EOL column in this file is a snapshot only — do not use it directly without recomputing.
+**On every design run:** Query `GetFoundationModel` or
+`ListFoundationModels` for each candidate and inspect `modelLifecycle.status`.
+`LEGACY` and `EOL` are never valid new-migration targets. For a model launched
+on or after 2026-09-07, read its model card for the `EOL no sooner than` date
+and whether its Legacy period is six months or 45 days. Absence from the
+pre-2026-09-07 Legacy table does not prove that a newer model is Active.
 
-**Periodic table refresh:** When the table itself needs updating (new models added, EOL dates changed by AWS, or past-EOL rows to remove), update this file and `pricing-cache.md` together. The authoritative source is always the [Bedrock model lifecycle page](https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html).
+When live/API evidence is unavailable, recompute
+`days_to_eol = EOL date − today` for every pre-2026-09-07 row above and apply
+the four selection rules. Treat an uncataloged newer model's lifecycle as
+unverified; do not silently infer `active` from a stale pricing cache.
 
-**Past-EOL rows:** Once `days_to_eol ≤ 0`, remove the row from this table entirely on the next periodic refresh — past-EOL models serve no reference value and create confusion.
+**Periodic table refresh:** Update this canonical file and the applicable
+pricing caches together whenever AWS adds a Legacy/EOL date, a model card
+changes, or a date passes. Then run `shared:sync`; never edit vendored copies
+independently.
+
+**Past-EOL rows:** Once `days_to_eol ≤ 0`, remove the model from the live
+Legacy table on the next refresh and retain it only in Removed/catalog warnings
+long enough for CI to catch stale targets.

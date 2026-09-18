@@ -29,11 +29,29 @@ EXTS = {".md", ".py", ".json", ".ts", ".tf", ".sh", ".template"}
 BAD_PATTERNS = [
     (
         re.compile(r"claude-sonnet-4-20250514"),
-        "Claude Sonnet 4 (EOL Oct 14, 2026, excluded) used outside the model catalog",
+        "Claude Sonnet 4 (EOL 2026-10-14, excluded) used outside the model catalog",
         {  # allowlist: catalog files whose job is recording the model + its EOL status
             "skills/gcp-to-aws/references/shared/pricing-cache.md",
             "skills/shared/ai/ai-model-lifecycle.md",
         },
+    ),
+    (
+        re.compile(r"anthropic\.claude-3-haiku-20240307-v1:0"),
+        "Claude 3 Haiku (EOL 2026-09-10) used outside the model catalog",
+        {"skills/shared/ai/ai-model-lifecycle.md"},
+    ),
+    (
+        re.compile(r"amazon\.nova-premier-v1:0"),
+        "Nova Premier v1 (EOL 2026-09-14) used outside the model catalog",
+        {
+            "skills/gcp-to-aws/references/shared/pricing-cache.md",
+            "skills/shared/ai/ai-model-lifecycle.md",
+        },
+    ),
+    (
+        re.compile(r"amazon\.nova-sonic-v1:0"),
+        "Nova Sonic v1 (EOL 2026-09-14) used outside the model catalog",
+        {"skills/shared/ai/ai-model-lifecycle.md"},
     ),
     (
         re.compile(r"claude-(?:sonnet-4-6|opus-4-8)-\d{8}"),

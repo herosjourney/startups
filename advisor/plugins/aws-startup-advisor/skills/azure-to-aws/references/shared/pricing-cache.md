@@ -17,6 +17,13 @@
 > **Staleness warning:** if today is more than 30 days after **Last updated**, treat AI model
 > prices as potentially stale; set `pricing_source: "cached_stale"` in `estimation-ai.json` and
 > note it. Verify via the MCP server or [aws.amazon.com/bedrock/pricing](https://aws.amazon.com/bedrock/pricing/).
+>
+> **Lifecycle is not a cached price field.** Before selecting any model, query
+> `GetFoundationModel` or `ListFoundationModels` and inspect
+> `modelLifecycle.status`. For models launched on or after 2026-09-07, also
+> read the model card: its Legacy notice may be six months or 45 days. An
+> `active` value below is a dated snapshot, not permission to skip the runtime
+> lifecycle check. See `references/vendored/ai/ai-model-lifecycle.md`.
 
 ---
 
