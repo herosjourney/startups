@@ -31,9 +31,7 @@ _re_entry_guard:
 _preconditions:
   - _check_single_active_phase: true
     _on_failure: _halt_and_inform
-  - _main_window_prework: "Live-capture pre-work (Part A of phases/discover/discover-live.md). This runs in the INTERACTIVE main window BEFORE the dispatched fragments, because the phase is _interactive: false and a dispatched worker cannot prompt for consent. Offer live `az` discovery WHEN no IaC source (.tf/.bicep/ARM) is present in the workspace, OR the user has asked to augment IaC with live state. Run discover-live.md Steps 0–2 (preflight, consent gate, capture). On consent the capture commands write $MIGRATION_DIR/live-capture/ + manifest.json; on decline, az-missing, or no-offer, write nothing. This step is READ-ONLY and never a hard-stop — if it produces nothing, the run continues on IaC/app-code alone."
-    _on_failure: _continue
-  - _assert: "at least one migratable source is available: an IaC source (a .tf file containing an azurerm_* resource, a .bicep file, or an ARM template whose $schema contains 'deploymentTemplate'), OR application source code / a dependency manifest that the app-code fragment can scan for an AI signal, OR a live-capture directory produced by the Part A pre-work above. A workspace with NONE of these is the only unrecoverable case — matching gcp's 'stop only when nothing will produce any artifact'"
+  - _assert: "at least one migratable source is available: an IaC source (a .tf file containing an azurerm_* resource, a .bicep file, or an ARM template whose $schema contains 'deploymentTemplate'), OR application source code / a dependency manifest that the app-code fragment can scan for an AI signal, OR a live-capture directory produced by the main-window live-capture pre-work (see the body's 'Run the phase' Step 2 — the interactive Part A of discover-live.md). A workspace with NONE of these is the only unrecoverable case — matching gcp's 'stop only when nothing will produce any artifact'"
     _on_failure: _unrecoverable
 _postconditions:
   - _assert: "at least one discovery artifact was produced: azure-resource-inventory.json (when an IaC source was found OR live capture produced resources) OR ai-workload-profile.json (when application code — or a live Cognitive Services signal — had an AI signal). This is the completion anchor — an app-code-only run that produced only the AI profile satisfies discover, matching gcp's 'stop only when nothing will produce any artifact'"
@@ -111,18 +109,29 @@ Two producers now write the inventory: `discover-iac.md` (Terraform) and
 **The live `az` path (landed).** This phase runs under `_exec: { _agent: rw }` with
 `_interactive: false`, and a dispatched worker is file-only — it cannot prompt for
 consent. Live discovery is therefore split: **Part A** (consent gate + `az` capture)
-runs as main-window pre-work invoked from this phase's `_preconditions`
-`_main_window_prework` step, writing raw JSON to `$MIGRATION_DIR/live-capture/`; the
-dispatched **`live-parse`** fragment (`discover-live.md` Part B) then merely parses
-that directory into the inventory. RDfA needs no such split: reading an archive the
-customer already handed over is not interactive. If Part A is declined or `az` is
-missing, no `live-capture/` is written and the `live-parse` fragment's trigger stays
-false — the run proceeds on IaC/app-code alone.
+runs as main-window pre-work in the "Run the phase" Step 2 below, writing raw JSON to
+`$MIGRATION_DIR/live-capture/`; the dispatched **`live-parse`** fragment
+(`discover-live.md` Part B) then merely parses that directory into the inventory. RDfA
+needs no such split: reading an archive the customer already handed over is not
+interactive. If Part A is declined or `az` is missing, no `live-capture/` is written
+and the `live-parse` fragment's trigger stays false — the run proceeds on IaC/app-code
+alone.
 
 ## Step: Run the phase
 
 1. Perform `_init` state setup per `INTERPRETER.md` § `_init: true`.
-2. Run each fragment whose `_trigger` holds.
-3. Run `discover-assemble.md`.
-4. Evaluate `_postconditions`. On all-pass emit `HANDOFF_OK`; on any failure emit
+2. **Live-capture pre-work (interactive main window, Part A of `discover-live.md`).**
+   BEFORE dispatching any fragment — because this phase is `_interactive: false` and a
+   dispatched worker cannot prompt for consent — offer live `az` discovery WHEN no IaC
+   source (`.tf`/`.bicep`/ARM) is present in the workspace, OR the user asked to augment
+   IaC with live state. Run `discover-live.md` Steps 0–2 (preflight, consent gate,
+   capture) here in the main window. On consent, the read-only capture writes
+   `$MIGRATION_DIR/live-capture/` + `manifest.json`; on decline, missing `az`, or no
+   offer, write nothing. This step is read-only and never a hard-stop — if it produces
+   nothing, the run continues on IaC/app-code alone (the `live-parse` fragment simply
+   stays inert).
+3. Run each fragment whose `_trigger` holds (the `live-parse` fragment fires only when
+   Step 2 wrote `live-capture/manifest.json`).
+4. Run `discover-assemble.md`.
+5. Evaluate `_postconditions`. On all-pass emit `HANDOFF_OK`; on any failure emit
    `GATE_FAIL` and stop. Do not patch an artifact to force a gate to pass.
